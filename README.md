@@ -2,6 +2,9 @@
 Firebasefunktionen um die Realtíme Datenbank von alten Loggereintraegen aufzuraeumen
 Achtung: Firebasefunktionen müssen komplett klein geschrieben sein !!!
 
+Zum Arbeiten immer den Develop branch verwenden
+
+
 ## Initialisieren und Projekt aufsetzen
 im Verzeichnis firebase init functions aufrufen
 Install dependencies with npm am Ende mit Y beantworten und Eslint auch verwenden
@@ -21,7 +24,8 @@ auf den Klicken dann startet der Chrom debugger und das Programm stoppt an der e
 und man kann im Single Step Betrieb weiter machen
 
 ## Deployen
-zum Deployen npn run deploy aufrufen
+Actions zum Deployment sind noch nicht implementiert d.h. das deployment muss manuell gemacht werden
+Zum Deployen daher npn run deploy aufrufen
 Im Unterverzeichnis functions !
 
 Das wars !
