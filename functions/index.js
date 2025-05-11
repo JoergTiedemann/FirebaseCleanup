@@ -8,6 +8,14 @@
  */
 
 // const {onRequest} = require("firebase-functions/v2/https");
+
+
+// für Simulation
+const simulprefix = "Simul/Test";
+// fuer Produktivdatenbank
+// const simulprefix = "";
+
+
 const v2 = require("firebase-functions/v2");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {log} = require("firebase-functions/logger");
@@ -54,26 +62,41 @@ function aufraeumen(cfgpfad, loeschpfad, fblog) {
         var AnzahlTage  = data.MaxDays;
         var endDate = new Date();
         endDate.setDate(endDate.getDate() - AnzahlTage);
-        console.log("bis Datum:", endDate.toString());
+        console.log("loeschen bis Datum:", endDate.toString());
         var strEnd = endDate.getFullYear().toString() + "/" + String(endDate.getMonth()+1)+ "/"  + endDate.getDate().toString()+" 00:00:00";
         var endunixTimestamp = Math.round(new Date(strEnd).getTime()/1000);
         // console.log("endunixTimestamp:", endunixTimestamp.toString());
-        const ProtokollQuery = admin.database().ref(loeschpfad);
+        const ProtokollQuery = admin.database().ref(simulprefix+loeschpfad);
         const Abfrage = ProtokollQuery.orderByChild("LoggingTimestamp").endAt(endunixTimestamp); 
         Abfrage.once("value",(snapshot) => {
             const data = snapshot.val();
-            // console.log("pumpenprotokoll gelesen:", data);
-            // array durchlaufen
             var AnzahlDatasets = 0;
-            Object.keys(data).forEach(function(key) {
-                var val = data[key];
-                // Gesamtaufzeit = Gesamtaufzeit + val["LoggingTagesLaufzeit"];
-                AnzahlDatasets++;
-                // console.log("Tageslaufzeit:",val["LoggingTagesLaufzeit"]," Gesamtaufzeit:",Gesamtaufzeit," Datume:",unixToString(val["LoggingTimestamp"]));
-                // if (startDatum === "")
-                //     startDatum = unixToString(val["LoggingTimestamp"]);
+            if (data != null) {
+                // console.log("pumpenprotokoll gelesen:", data);
+                // array durchlaufen
+                Object.keys(data).forEach(function(key) {
+                    var val = data[key];
+                    // Gesamtaufzeit = Gesamtaufzeit + val["LoggingTagesLaufzeit"];
+                    AnzahlDatasets++;
+                    if (AnzahlDatasets<10)
+                        console.log("zu loeschender Key:",key);
+
+                    ProtokollQuery.child(key).remove()
+                        .then(() => {
+                            if (AnzahlDatasets<10)
+                             console.log(`Datensatz mit Schlüssel ${key} erfolgreich gelöscht!`);
+                        })
+                        .catch((error) => {
+                            console.error(`Fehler beim Löschen des Datensatzes mit Schlüssel ${key}:`, error);
+                        });
+
                 });
-            console.log("Anzahl zu loeschender Datensaetze:",AnzahlDatasets);
+                console.log("Anzahl zu loeschender Datensaetze:",AnzahlDatasets);
+            }
+            else
+            {
+                console.error("Keine Datensätze zum Loeschen");
+            }
             // Schreibe oder aktualisiere das Feld "DeletedCount"
             ref.update({ DeletedCount: AnzahlDatasets })
                 .then(() => {
@@ -91,7 +114,7 @@ function aufraeumen(cfgpfad, loeschpfad, fblog) {
                     console.error("Fehler beim Aktualisieren von LoeschDatum:", error);
                 });
 
-            });
+        });
       });
     return `Aufraeumen beendet Pfad:${cfgpfad}`;
 }
@@ -139,6 +162,6 @@ functions.pubsub.schedule('5 11 * * *').onRun((context) => {
     console.log('This will be run every day at 11:05 AM UTC!');
 exports.accountcleanup = onSchedule("every 5 minutes", async (event) => {
 */    
-exports.accountcleanup = onSchedule("5 * * * *", async (event) => {
+exports.accountcleanup = onSchedule("5 10 * * *", async (event) => {
     aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",log);
   });
