@@ -17,6 +17,7 @@ const simulprefix = "Simul/Test";
 
 
 const v2 = require("firebase-functions/v2");
+
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {log} = require("firebase-functions/logger");
 
@@ -38,13 +39,13 @@ admin.initializeApp();
 // Maxmalzeit gelesen
 // wird und wo hinprotokoliiert wird mitgeben d.h.
 // Wasserwerk/CleanupConfig/Pfad
-function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
+async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
   //debugger; // dies ist ein Breakpoint
   // unter der url: chrome://inspect/#devices taucht ein inpect Link am Ende auf unter Remote Target
   // auf dann startet der Chrom debugger und das Programm stoppt an der entsprechenden Stelle und man 
   // kann im Single Step Betrieb weiter machen
   // perfekt !
-  console.log("Aufraeumen wurde aufgerufen Pfad:"+cfgpfad);
+  console.log("Aufraeumen wurde aufgerufen Pfad:"+cfgpfad+" loeschen:"+boolloeschen);
   // fblog("Scheduler mit Namen aufraeumen wurde aufgerufen"+param);
 
   const cfgpath = "Wasserwerk/CleanupConfig/"+cfgpfad;
@@ -55,82 +56,105 @@ function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
   if (boolloeschen == false) {
         strQueryInfo = "Nur als Abfrage (ohne tatsächliches Löschen)!";
   }
-
-  ref.once("value", (snapshot) => {
-        const data = snapshot.val();
-        console.log("Daten aus der Datenbank:", data);
-        console.log("MaxDays:",data.MaxDays);
-        // fblog("MaxOnTime:"+data.MaxOnTime);
+  try 
+  {
+      // Hier wird die Konfiguration aus der Datenbank gelesen
+      const snapshot = await ref.get();
+      if (snapshot.exists()) {
+        const cfgdata = snapshot.val();
+        console.log("Daten aus der Datenbank:", cfgdata);
+        console.log("MaxDays:",cfgdata.MaxDays);
+        // fblog("MaxOnTime:"+cfgdata.MaxOnTime);
         // so nun wollen wir die Daten abfragen
         var startDatum = "";
-        var AnzahlTage  = data.MaxDays;
+        var AnzahlTage  = cfgdata.MaxDays;
         var endDate = new Date();
         endDate.setDate(endDate.getDate() - AnzahlTage);
         console.log("loeschen bis Datum:", endDate.toString());
         var strEnd = endDate.getFullYear().toString() + "/" + String(endDate.getMonth()+1)+ "/"  + endDate.getDate().toString()+" 00:00:00";
         var endunixTimestamp = Math.round(new Date(strEnd).getTime()/1000);
         // console.log("endunixTimestamp:", endunixTimestamp.toString());
+        var AnzahlDatasets = 0;
         const ProtokollQuery = admin.database().ref(simulprefix+loeschpfad);
         const Abfrage = ProtokollQuery.orderByChild("LoggingTimestamp").endAt(endunixTimestamp); 
-
-        Abfrage.once("value",(snapshot) => {
-            const data = snapshot.val();
-            var AnzahlDatasets = 0;
-            if (data != null) {
-                // console.log("pumpenprotokoll gelesen:", data);
-                // array durchlaufen
-                Object.keys(data).forEach(function(key) {
-                    var val = data[key];
-                    // Gesamtaufzeit = Gesamtaufzeit + val["LoggingTagesLaufzeit"];
-                    AnzahlDatasets++;
-                    // if (AnzahlDatasets<10)
-                    //     console.log("zu loeschender Key:",key);
-                    if (boolloeschen == true) {
-                        ProtokollQuery.child(key).remove()
-                            .then(() => {
-                                if (AnzahlDatasets<10)
-                                console.log(`Datensatz mit Schlüssel ${key} erfolgreich gelöscht!`);
-                            })
-                            .catch((error) => {
-                                console.error(`Fehler beim Löschen des Datensatzes mit Schlüssel ${key}:`, error);
-                            });
-                    }
+        try
+        {
+          const datensnapshot = await Abfrage.get();
+          if (datensnapshot.exists()) {
+              const data = datensnapshot.val();
+              // console.log("pumpenprotokoll gelesen:", data);
+              // array durchlaufen
+              Object.keys(data).forEach(function(key) {
+              var val = data[key];
+              // Gesamtaufzeit = Gesamtaufzeit + val["LoggingTagesLaufzeit"];
+              AnzahlDatasets++;
+              // if (AnzahlDatasets<10)
+              //     console.log("zu loeschender Key:",key);
+              if (boolloeschen == true) {
+                  // console.log("Loeschaufruf:",key);
+                  ProtokollQuery.child(key).remove()
+                      .then(() => {
+                          if (AnzahlDatasets<5)
+                          console.log(`Datensatz mit Schlüssel ${key} erfolgreich gelöscht!`);
+                      })
+                      .catch((error) => {
+                          console.log(`Fehler beim Löschen des Datensatzes mit Schlüssel ${key}:`, error);
+                      });
+                }
+              });
+              console.log("Anzahl zu loeschender Datensaetze:",AnzahlDatasets);
+          }
+          else
+          {
+            console.log("Keine Datensätze zum Loeschen");
+          }
+          // Schreibe oder aktualisiere das Feld "DeletedCount"
+          if (boolloeschen == true) {
+            ref.update({ DeletedCount: AnzahlDatasets })
+                .then(() => {
+                    console.log("DelCount erfolgreich aktualisiert!");
+                })
+                .catch((error) => {
+                    console.log("Fehler beim Aktualisieren von DelCount:", error);
                 });
-                console.log("Anzahl zu loeschender Datensaetze:",AnzahlDatasets);
-            }
-            else
-            {
-                console.error("Keine Datensätze zum Loeschen");
-            }
-            // Schreibe oder aktualisiere das Feld "DeletedCount"
-            if (boolloeschen == true) {
-                ref.update({ DeletedCount: AnzahlDatasets })
-                    .then(() => {
-                        // console.log("DelCount erfolgreich aktualisiert!");
-                    })
-                    .catch((error) => {
-                        console.error("Fehler beim Aktualisieren von DelCount:", error);
-                    });
-                // Schreibe oder aktualisiere das Feld "LoeschDatum"
-                ref.update({ LoeschDatum: Date().toString() })
-                    .then(() => {
-                        console.log("LoeschDatum erfolgreich aktualisiert!");
-                    })
-                    .catch((error) => {
-                        console.error("Fehler beim Aktualisieren von LoeschDatum:", error);
-                    });
-            }
-        });
-      });
-    const dat = new Date();
-    const formattedDateTime = dat.toLocaleString("de-DE"); // Datum und Uhrzeit
-    const retstring = `Aufraeumen:${cfgpfad} um ${formattedDateTime} durchgeführt! ${strQueryInfo}`;
-    return retstring;
+            // Schreibe oder aktualisiere das Feld "LoeschDatum"
+            ref.update({ LoeschDatum: Date().toString() })
+                .then(() => {
+                    console.log("LoeschDatum erfolgreich aktualisiert!");
+                })
+                .catch((error) => {
+                    console.log("Fehler beim Aktualisieren von LoeschDatum:", error);
+                });
+          }
+          const dat = new Date();
+          const formattedDateTime = dat.toLocaleString("de-DE"); // Datum und Uhrzeit
+          const retstring = `Aufraeumen:${cfgpfad} um ${formattedDateTime} durchgeführt! ${strQueryInfo} Anzahl Datensätze: ${AnzahlDatasets} gelöscht!`;
+          return retstring;
+        }
+        catch (error) {
+          console.log("Fehler beim Abfragen der Daten:", error);
+          throw error; // Fehler weitergeben
+        }
+      }
+      else 
+      {
+        console.log("Keine Konfiguration gefunden!");
+        const dat = new Date();
+        const formattedDateTime = dat.toLocaleString("de-DE"); // Datum und Uhrzeit
+        const retstring = `Aufraeumen:${cfgpfad} um ${formattedDateTime} durchgeführt! ${strQueryInfo} No Config loaded`;
+        return retstring;
+      }
+  } 
+  catch (error) 
+  {
+      console.error("Fehler beim Lesen der Konfiguration:", error);
+      throw error; // Fehler weitergeben
+  }
 }
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 1.1";
+  const message = "Firebase Cleanup Functions Version: 1.2";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -148,27 +172,64 @@ exports.helloworld = v2.https.onRequest((request, response) => {
 
 exports.pumpenloggingquery = v2.https.onRequest((request, response) => {
 //   const name = request.params[0].replace("/", "");
-  const testmessage = aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",false,log);
-  response.send(`<h1>${testmessage}</h1>`);
-  
+aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",false,log)
+  .then((testmessage) => {
+    if (testmessage )
+      response.send(`<h1>${testmessage}</h1>`);
+    else
+      response.send(`<h1>Keine Daten gefunden!</h1>`);
+  })
+  .catch((error) => {
+    console.log("Fehler beim Aufräumen:", error);
+    response.status(500).send("Fehler beim Aufräumen: " + error.message);
+  });
 });
+
 
 exports.pumpentageswertequery = v2.https.onRequest((request, response) => {
 //   const name = request.params[0].replace("/", "");
-  const testmessage = aufraeumen("PumpenTageswerte","Wasserwerk/Pumpenmonitor/Tageswerte",false,log);
-  response.send(`<h1>${testmessage}</h1>`);
+aufraeumen("PumpenTageswerte","Wasserwerk/Pumpenmonitor/Tageswerte",false,log)
+  .then((testmessage) => {
+    if (testmessage )
+      response.send(`<h1>${testmessage}</h1>`);
+    else
+      response.send(`<h1>Keine Daten gefunden!</h1>`);
+  })
+  .catch((error) => {
+    console.log("Fehler beim Aufräumen:", error);
+    response.status(500).send("Fehler beim Aufräumen: " + error.message);
+  });
 });
 
 exports.stromtageswertequery = v2.https.onRequest((request, response) => {
-//   const name = request.params[0].replace("/", "");
-  const testmessage = aufraeumen("StromTageswerte","Stromzaehler/VerbrauchsTageswerte",false,log);
-  response.send(`<h1>${testmessage}</h1>`);
+aufraeumen("StromTageswerte","Stromzaehler/VerbrauchsTageswerte",false,log)
+  .then((testmessage) => {
+    if (testmessage )
+      response.send(`<h1>${testmessage}</h1>`);
+    else
+      response.send(`<h1>Keine Daten gefunden!</h1>`);
+  })
+  .catch((error) => {
+    console.log("Fehler beim Aufräumen:", error);
+    response.status(500).send("Fehler beim Aufräumen: " + error.message);
+  });
 });
 
+
+
 exports.stromloggingquery = v2.https.onRequest((request, response) => {
-//   const name = request.params[0].replace("/", "");
-  const testmessage = aufraeumen("StromLogging","Stromzaehler/Leistungslogging",false,log);
-  response.send(`<h1>${testmessage}</h1>`);
+  //   const name = request.params[0].replace("/", "");
+aufraeumen("StromLogging","Stromzaehler/Leistungslogging",false,log)
+  .then((testmessage) => {
+    if (testmessage )
+      response.send(`<h1>${testmessage}</h1>`);
+    else
+      response.send(`<h1>Keine Daten gefunden!</h1>`);
+  })
+  .catch((error) => {
+    console.log("Fehler beim Aufräumen:", error);
+    response.status(500).send("Fehler beim Aufräumen: " + error.message);
+  });
 });
 
 
@@ -189,19 +250,72 @@ functions.pubsub.schedule('5 11 * * *').onRun((context) => {
     console.log('This will be run every day at 11:05 AM UTC!');
 exports.accountcleanup = onSchedule("every 5 minutes", async (event) => {
 */    
+// exports.stromloggingcleanup = functions.pubsub.schedule("0 10 * * *")
+//.onRun((context) => {
+
 exports.stromloggingcleanup = onSchedule("0 10 * * *", async (event) => {
-    aufraeumen("StromLogging","Stromzaehler/Leistungslogging",true,log);
-  });
+  console.log("stromloggingcleanup wurde aufgerufen");
+  try
+  {
+   const testmessage = await aufraeumen("StromLogging","Stromzaehler/Leistungslogging",true,log);
+        if (testmessage )
+          console.log("cleanup durchgeführt:", testmessage);
+        else
+          console.log("cleanup NICHT durchgeführt");
+  }
+  catch(error)
+  {
+        console.log("Fehler beim cleanup:", error);
+  }
+});
 
 exports.pumpenloggingcleanup = onSchedule("5 10 * * *", async (event) => {
-    aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",true,log);
-  });
+  console.log("pumpenloggingcleanup wurde aufgerufen");
+  try
+  {
+   const testmessage = await aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",true,log);
+        if (testmessage )
+          console.log("cleanup durchgeführt:", testmessage);
+        else
+          console.log("cleanup NICHT durchgeführt");
+  }
+  catch(error)
+  {
+        console.log("Fehler beim cleanup:", error);
+  }
+});
+
+
 
 exports.pumpentageswertecleanup = onSchedule("10 10 * * *", async (event) => {
-    aufraeumen("PumpenTageswerte","Wasserwerk/Pumpenmonitor/Tageswerte",true,log);
-  });
+  console.log("pumpentageswertecleanup wurde aufgerufen");
+  try
+  {
+   const testmessage = await aufraeumen("PumpenTageswerte","Wasserwerk/Pumpenmonitor/Tageswerte",true,log);
+        if (testmessage )
+          console.log("cleanup durchgeführt:", testmessage);
+        else
+          console.log("cleanup NICHT durchgeführt");
+  }
+  catch(error)
+  {
+        console.log("Fehler beim cleanup:", error);
+  }
+});
+
 
 exports.stromtageswertecleanup = onSchedule("15 10 * * *", async (event) => {
-    aufraeumen("StromTageswerte","Stromzaehler/VerbrauchsTageswerte",true,log);
-  });
-
+  console.log("stromtageswertecleanup wurde aufgerufen");
+  try
+  {
+   const testmessage = await aufraeumen("StromTageswerte","Stromzaehler/VerbrauchsTageswerte",true,log);
+        if (testmessage )
+          console.log("cleanup durchgeführt:", testmessage);
+        else
+          console.log("cleanup NICHT durchgeführt");
+  }
+  catch(error)
+  {
+        console.log("Fehler beim cleanup:", error);
+  }
+});
