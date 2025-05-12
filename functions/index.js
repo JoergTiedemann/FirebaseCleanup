@@ -38,7 +38,7 @@ admin.initializeApp();
 // Maxmalzeit gelesen
 // wird und wo hinprotokoliiert wird mitgeben d.h.
 // Wasserwerk/CleanupConfig/Pfad
-function aufraeumen(cfgpfad, loeschpfad, fblog) {
+function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
   //debugger; // dies ist ein Breakpoint
   // unter der url: chrome://inspect/#devices taucht ein inpect Link am Ende auf unter Remote Target
   // auf dann startet der Chrom debugger und das Programm stoppt an der entsprechenden Stelle und man 
@@ -51,6 +51,10 @@ function aufraeumen(cfgpfad, loeschpfad, fblog) {
   console.log("Cfgpath:", cfgpath);
   // const ref = admin.database().ref("Wasserwerk/CleanupConfig/Pumpenlogging");
   const ref = admin.database().ref(cfgpath);
+  var strQueryInfo = "";
+  if (boolloeschen == false) {
+        strQueryInfo = "Nur als Abfrage (ohne tatsächliches Löschen)!";
+  }
 
   ref.once("value", (snapshot) => {
         const data = snapshot.val();
@@ -68,6 +72,7 @@ function aufraeumen(cfgpfad, loeschpfad, fblog) {
         // console.log("endunixTimestamp:", endunixTimestamp.toString());
         const ProtokollQuery = admin.database().ref(simulprefix+loeschpfad);
         const Abfrage = ProtokollQuery.orderByChild("LoggingTimestamp").endAt(endunixTimestamp); 
+
         Abfrage.once("value",(snapshot) => {
             const data = snapshot.val();
             var AnzahlDatasets = 0;
@@ -78,18 +83,18 @@ function aufraeumen(cfgpfad, loeschpfad, fblog) {
                     var val = data[key];
                     // Gesamtaufzeit = Gesamtaufzeit + val["LoggingTagesLaufzeit"];
                     AnzahlDatasets++;
-                    if (AnzahlDatasets<10)
-                        console.log("zu loeschender Key:",key);
-
-                    ProtokollQuery.child(key).remove()
-                        .then(() => {
-                            if (AnzahlDatasets<10)
-                             console.log(`Datensatz mit Schlüssel ${key} erfolgreich gelöscht!`);
-                        })
-                        .catch((error) => {
-                            console.error(`Fehler beim Löschen des Datensatzes mit Schlüssel ${key}:`, error);
-                        });
-
+                    // if (AnzahlDatasets<10)
+                    //     console.log("zu loeschender Key:",key);
+                    if (boolloeschen == true) {
+                        ProtokollQuery.child(key).remove()
+                            .then(() => {
+                                if (AnzahlDatasets<10)
+                                console.log(`Datensatz mit Schlüssel ${key} erfolgreich gelöscht!`);
+                            })
+                            .catch((error) => {
+                                console.error(`Fehler beim Löschen des Datensatzes mit Schlüssel ${key}:`, error);
+                            });
+                    }
                 });
                 console.log("Anzahl zu loeschender Datensaetze:",AnzahlDatasets);
             }
@@ -98,50 +103,72 @@ function aufraeumen(cfgpfad, loeschpfad, fblog) {
                 console.error("Keine Datensätze zum Loeschen");
             }
             // Schreibe oder aktualisiere das Feld "DeletedCount"
-            ref.update({ DeletedCount: AnzahlDatasets })
-                .then(() => {
-                    console.log("DelCount erfolgreich aktualisiert!");
-                })
-                .catch((error) => {
-                    console.error("Fehler beim Aktualisieren von DelCount:", error);
-                });
-            // Schreibe oder aktualisiere das Feld "LoeschDatum"
-            ref.update({ LoeschDatum: Date().toString() })
-                .then(() => {
-                    console.log("LoeschDatum erfolgreich aktualisiert!");
-                })
-                .catch((error) => {
-                    console.error("Fehler beim Aktualisieren von LoeschDatum:", error);
-                });
-
+            if (boolloeschen == true) {
+                ref.update({ DeletedCount: AnzahlDatasets })
+                    .then(() => {
+                        // console.log("DelCount erfolgreich aktualisiert!");
+                    })
+                    .catch((error) => {
+                        console.error("Fehler beim Aktualisieren von DelCount:", error);
+                    });
+                // Schreibe oder aktualisiere das Feld "LoeschDatum"
+                ref.update({ LoeschDatum: Date().toString() })
+                    .then(() => {
+                        console.log("LoeschDatum erfolgreich aktualisiert!");
+                    })
+                    .catch((error) => {
+                        console.error("Fehler beim Aktualisieren von LoeschDatum:", error);
+                    });
+            }
         });
       });
-    return `Aufraeumen beendet Pfad:${cfgpfad}`;
+    const dat = new Date();
+    const formattedDateTime = dat.toLocaleString("de-DE"); // Datum und Uhrzeit
+    const retstring = `Aufraeumen:${cfgpfad} um ${formattedDateTime} durchgeführt! ${strQueryInfo}`;
+    return retstring;
 }
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 1.0";
+  const message = "Firebase Cleanup Functions Version: 1.1";
   response.send(`<h1>${message}</h1>`);
 
 });
 
 
 exports.helloworld = v2.https.onRequest((request, response) => {
-  const message = "Hallo Welt als js mit Consolenlog mit 2. Funktion als scheduled function";
+  const dat = new Date();
+  const formattedDateTime = dat.toLocaleString("de-DE"); // Datum und Uhrzeit
+  const message = "Hallo Welt mit Consolenlog um:" + formattedDateTime;
   response.send(`<h1>${message}</h1>`);
 
 });
 
 
 
-exports.databasecleanup = v2.https.onRequest((request, response) => {
+exports.pumpenloggingquery = v2.https.onRequest((request, response) => {
 //   const name = request.params[0].replace("/", "");
-  const testMessage = aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",log);
-
-  const message = testMessage ;
-  response.send(`<h1>${message}</h1>`);
+  const testmessage = aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",false,log);
+  response.send(`<h1>${testmessage}</h1>`);
   
+});
+
+exports.pumpentageswertequery = v2.https.onRequest((request, response) => {
+//   const name = request.params[0].replace("/", "");
+  const testmessage = aufraeumen("PumpenTageswerte","Wasserwerk/Pumpenmonitor/Tageswerte",false,log);
+  response.send(`<h1>${testmessage}</h1>`);
+});
+
+exports.stromtageswertequery = v2.https.onRequest((request, response) => {
+//   const name = request.params[0].replace("/", "");
+  const testmessage = aufraeumen("StromTageswerte","Stromzaehler/VerbrauchsTageswerte",false,log);
+  response.send(`<h1>${testmessage}</h1>`);
+});
+
+exports.stromloggingquery = v2.https.onRequest((request, response) => {
+//   const name = request.params[0].replace("/", "");
+  const testmessage = aufraeumen("StromLogging","Stromzaehler/Leistungslogging",false,log);
+  response.send(`<h1>${testmessage}</h1>`);
 });
 
 
@@ -162,6 +189,19 @@ functions.pubsub.schedule('5 11 * * *').onRun((context) => {
     console.log('This will be run every day at 11:05 AM UTC!');
 exports.accountcleanup = onSchedule("every 5 minutes", async (event) => {
 */    
-exports.accountcleanup = onSchedule("5 10 * * *", async (event) => {
-    aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",log);
+exports.stromloggingcleanup = onSchedule("0 10 * * *", async (event) => {
+    aufraeumen("StromLogging","Stromzaehler/Leistungslogging",true,log);
   });
+
+exports.pumpenloggingcleanup = onSchedule("5 10 * * *", async (event) => {
+    aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",true,log);
+  });
+
+exports.pumpentageswertecleanup = onSchedule("10 10 * * *", async (event) => {
+    aufraeumen("PumpenTageswerte","Wasserwerk/Pumpenmonitor/Tageswerte",true,log);
+  });
+
+exports.stromtageswertecleanup = onSchedule("15 10 * * *", async (event) => {
+    aufraeumen("StromTageswerte","Stromzaehler/VerbrauchsTageswerte",true,log);
+  });
+
