@@ -312,7 +312,7 @@ exports.accountcleanup = onSchedule("every 5 minutes", async (event) => {
 // exports.stromloggingcleanup = functions.pubsub.schedule("0 10 * * *")
 //.onRun((context) => {
 
-exports.stromloggingcleanup = onSchedule("0 10 * * *", async (event) => {
+exports.stromloggingcleanup = onSchedule("0 7 * * *", async (event) => {
   console.log("stromloggingcleanup wurde aufgerufen");
   try
   {
