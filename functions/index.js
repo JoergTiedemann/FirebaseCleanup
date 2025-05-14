@@ -68,72 +68,99 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
         // so nun wollen wir die Daten abfragen
         var startDatum = "";
         var AnzahlTage  = cfgdata.MaxDays;
-        var endDate = new Date();
-        endDate.setDate(endDate.getDate() - AnzahlTage);
-        console.log("loeschen bis Datum:", endDate.toString());
-        var strEnd = endDate.getFullYear().toString() + "/" + String(endDate.getMonth()+1)+ "/"  + endDate.getDate().toString()+" 00:00:00";
-        var endunixTimestamp = Math.round(new Date(strEnd).getTime()/1000);
-        // console.log("endunixTimestamp:", endunixTimestamp.toString());
         var AnzahlDatasets = 0;
-        const ProtokollQuery = admin.database().ref(simulprefix+loeschpfad);
-        const Abfrage = ProtokollQuery.orderByChild("LoggingTimestamp").endAt(endunixTimestamp); 
-        try
+        if (AnzahlTage > 0)
         {
-          const datensnapshot = await Abfrage.get();
-          if (datensnapshot.exists()) {
-              const data = datensnapshot.val();
-              // console.log("pumpenprotokoll gelesen:", data);
-              // array durchlaufen
-              Object.keys(data).forEach(function(key) {
-              var val = data[key];
-              // Gesamtaufzeit = Gesamtaufzeit + val["LoggingTagesLaufzeit"];
-              AnzahlDatasets++;
-              // if (AnzahlDatasets<10)
-              //     console.log("zu loeschender Key:",key);
-              if (boolloeschen == true) {
-                  // console.log("Loeschaufruf:",key);
-                  ProtokollQuery.child(key).remove()
-                      .then(() => {
-                          if (AnzahlDatasets<5)
-                          console.log(`Datensatz mit Schlüssel ${key} erfolgreich gelöscht!`);
-                      })
-                      .catch((error) => {
-                          console.log(`Fehler beim Löschen des Datensatzes mit Schlüssel ${key}:`, error);
-                      });
-                }
-              });
-              console.log("Anzahl zu loeschender Datensaetze:",AnzahlDatasets);
-          }
-          else
+          var endDate = new Date();
+          endDate.setDate(endDate.getDate() - AnzahlTage);
+          console.log("loeschen bis Datum:", endDate.toString());
+          var strEnd = endDate.getFullYear().toString() + "/" + String(endDate.getMonth()+1)+ "/"  + endDate.getDate().toString()+" 00:00:00";
+          var endunixTimestamp = Math.round(new Date(strEnd).getTime()/1000);
+          // console.log("endunixTimestamp:", endunixTimestamp.toString());
+          const ProtokollQuery = admin.database().ref(simulprefix+loeschpfad);
+          const Abfrage = ProtokollQuery.orderByChild("LoggingTimestamp").endAt(endunixTimestamp); 
+          try
           {
-            console.log("Keine Datensätze zum Loeschen");
-          }
-          // Schreibe oder aktualisiere das Feld "DeletedCount"
-          if (boolloeschen == true) {
-            ref.update({ DeletedCount: AnzahlDatasets })
-                .then(() => {
+            const datensnapshot = await Abfrage.get();
+            if (datensnapshot.exists()) {
+                const data = datensnapshot.val();
+                // console.log("pumpenprotokoll gelesen:", data);
+                // array durchlaufen
+                // Object.keys(data).forEach(function(key) 
+                for (const key of Object.keys(data)) 
+                {
+                  // var val = data[key];
+                  // Gesamtaufzeit = Gesamtaufzeit + val["LoggingTagesLaufzeit"];
+                  AnzahlDatasets++;
+                  if (AnzahlDatasets<10)
+                      console.log("zu loeschender Key:",key);
+                  if (boolloeschen == true) {
+                      console.log("Loeschaufruf:",key);
+                      try {
+                          await ProtokollQuery.child(key).remove();
+                          if (AnzahlDatasets < 5) {
+                              console.log(`Datensatz mit Schlüssel ${key} erfolgreich gelöscht!`);
+                          }
+                        } catch (error) {
+                          console.log(`Fehler beim Löschen des Datensatzes mit Schlüssel ${key}:`, error);
+                        }
+                    }
+                }
+                console.log("Anzahl zu loeschender Datensaetze:",AnzahlDatasets);
+            }
+            else
+            {
+              console.log("Keine Datensätze zum Loeschen");
+            }
+            // Schreibe oder aktualisiere das Feld "DeletedCount"
+            if (boolloeschen == true) {
+                try {
+                    await ref.update({ DeletedCount: AnzahlDatasets })
                     console.log("DelCount erfolgreich aktualisiert!");
-                })
-                .catch((error) => {
-                    console.log("Fehler beim Aktualisieren von DelCount:", error);
-                });
-            // Schreibe oder aktualisiere das Feld "LoeschDatum"
-            ref.update({ LoeschDatum: Date().toString() })
-                .then(() => {
-                    console.log("LoeschDatum erfolgreich aktualisiert!");
-                })
-                .catch((error) => {
-                    console.log("Fehler beim Aktualisieren von LoeschDatum:", error);
-                });
+                  } catch (error) {
+                      console.log("Fehler beim Aktualisieren von DelCount:", error);
+                  } 
+              // Schreibe oder aktualisiere das Feld "LoeschDatum"
+                try {
+                    await ref.update({ LoeschDatum: Date().toString() })
+                      console.log("LoeschDatum erfolgreich aktualisiert!");
+                  } catch (error) {
+                      console.log("Fehler beim Aktualisieren von LoeschDatum:", error);
+                  }
+            }
+            const dat = new Date();
+            const formattedDateTime = dat.toLocaleString("de-DE"); // Datum und Uhrzeit
+            const retstring = `Aufraeumen:${cfgpfad} um ${formattedDateTime} durchgeführt! ${strQueryInfo} Anzahl Datensätze: ${AnzahlDatasets} gelöscht!`;
+            return retstring;
           }
-          const dat = new Date();
-          const formattedDateTime = dat.toLocaleString("de-DE"); // Datum und Uhrzeit
-          const retstring = `Aufraeumen:${cfgpfad} um ${formattedDateTime} durchgeführt! ${strQueryInfo} Anzahl Datensätze: ${AnzahlDatasets} gelöscht!`;
-          return retstring;
+          catch (error) {
+            console.log("Fehler beim Abfragen der Daten:", error);
+            throw error; // Fehler weitergeben
+          }
         }
-        catch (error) {
-          console.log("Fehler beim Abfragen der Daten:", error);
-          throw error; // Fehler weitergeben
+        else
+        {
+          console.log("Anzahl Tage <= 0, keine Löschung!");
+            if (boolloeschen == true) {
+                try {
+                    await ref.update({ DeletedCount: AnzahlDatasets })
+                    console.log("DelCount erfolgreich aktualisiert!");
+                  } catch (error) {
+                      console.log("Fehler beim Aktualisieren von DelCount:", error);
+                  } 
+              // Schreibe oder aktualisiere das Feld "LoeschDatum"
+                try {
+                    const infostr = "Kein Aufraeumen! Tage = 0:" + Date().toString()+"Kein Aufraeumen durchgeführt"
+                    await ref.update({ LoeschDatum: infostr })
+                      console.log("LoeschDatum erfolgreich aktualisiert!");
+                  } catch (error) {
+                      console.log("Fehler beim Aktualisieren von LoeschDatum:", error);
+                  }
+            }
+            const dat = new Date();
+            const formattedDateTime = dat.toLocaleString("de-DE"); // Datum und Uhrzeit
+            const retstring = `Kein Aufraeumen:${cfgpfad} um ${formattedDateTime} durchgeführt! ${strQueryInfo} Anzahl Tage =0!`;
+            return retstring;
         }
       }
       else 
@@ -154,7 +181,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 1.2";
+  const message = "Firebase Cleanup Functions Version: 1.3";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -189,6 +216,38 @@ aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",false,log)
 exports.pumpentageswertequery = v2.https.onRequest((request, response) => {
 //   const name = request.params[0].replace("/", "");
 aufraeumen("PumpenTageswerte","Wasserwerk/Pumpenmonitor/Tageswerte",false,log)
+  .then((testmessage) => {
+    if (testmessage )
+      response.send(`<h1>${testmessage}</h1>`);
+    else
+      response.send(`<h1>Keine Daten gefunden!</h1>`);
+  })
+  .catch((error) => {
+    console.log("Fehler beim Aufräumen:", error);
+    response.status(500).send("Fehler beim Aufräumen: " + error.message);
+  });
+});
+
+
+exports.heizungloggingquery = v2.https.onRequest((request, response) => {
+//   const name = request.params[0].replace("/", "");
+aufraeumen("HeizungLogging","Heizung/Brennerlogging",false,log)
+  .then((testmessage) => {
+    if (testmessage )
+      response.send(`<h1>${testmessage}</h1>`);
+    else
+      response.send(`<h1>Keine Daten gefunden!</h1>`);
+  })
+  .catch((error) => {
+    console.log("Fehler beim Aufräumen:", error);
+    response.status(500).send("Fehler beim Aufräumen: " + error.message);
+  });
+});
+
+
+exports.heizungtageswertequery = v2.https.onRequest((request, response) => {
+//   const name = request.params[0].replace("/", "");
+aufraeumen("HeizungTageswerte","Heizung/Heizungsmonitor/BrennerTageswerte",false,log)
   .then((testmessage) => {
     if (testmessage )
       response.send(`<h1>${testmessage}</h1>`);
@@ -269,7 +328,7 @@ exports.stromloggingcleanup = onSchedule("0 10 * * *", async (event) => {
   }
 });
 
-exports.pumpenloggingcleanup = onSchedule("5 10 * * *", async (event) => {
+exports.pumpenloggingcleanup = onSchedule("5 7 * * *", async (event) => {
   console.log("pumpenloggingcleanup wurde aufgerufen");
   try
   {
@@ -287,7 +346,7 @@ exports.pumpenloggingcleanup = onSchedule("5 10 * * *", async (event) => {
 
 
 
-exports.pumpentageswertecleanup = onSchedule("10 10 * * *", async (event) => {
+exports.pumpentageswertecleanup = onSchedule("10 7 * * *", async (event) => {
   console.log("pumpentageswertecleanup wurde aufgerufen");
   try
   {
@@ -304,11 +363,45 @@ exports.pumpentageswertecleanup = onSchedule("10 10 * * *", async (event) => {
 });
 
 
-exports.stromtageswertecleanup = onSchedule("15 10 * * *", async (event) => {
+exports.stromtageswertecleanup = onSchedule("15 7 * * *", async (event) => {
   console.log("stromtageswertecleanup wurde aufgerufen");
   try
   {
    const testmessage = await aufraeumen("StromTageswerte","Stromzaehler/VerbrauchsTageswerte",true,log);
+        if (testmessage )
+          console.log("cleanup durchgeführt:", testmessage);
+        else
+          console.log("cleanup NICHT durchgeführt");
+  }
+  catch(error)
+  {
+        console.log("Fehler beim cleanup:", error);
+  }
+});
+
+
+exports.heizungloggingcleanup = onSchedule("20 7 * * *", async (event) => {
+  console.log("heizungloggingcleanup wurde aufgerufen");
+  try
+  {
+   const testmessage = await aufraeumen("HeizungLogging","Heizung/Brennerlogging",true,log);
+        if (testmessage )
+          console.log("cleanup durchgeführt:", testmessage);
+        else
+          console.log("cleanup NICHT durchgeführt");
+  }
+  catch(error)
+  {
+        console.log("Fehler beim cleanup:", error);
+  }
+});
+
+
+exports.heizungtageswertecleanup = onSchedule("25 7 * * *", async (event) => {
+  console.log("heizungtageswertecleanup wurde aufgerufen");
+  try
+  {
+   const testmessage = await aufraeumen("HeizungTageswerte","Heizung/Heizungsmonitor/BrennerTageswerte",true,log);
         if (testmessage )
           console.log("cleanup durchgeführt:", testmessage);
         else
