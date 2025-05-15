@@ -181,7 +181,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 1.3";
+  const message = "Firebase Cleanup Functions Version: 1.4";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -260,6 +260,39 @@ aufraeumen("HeizungTageswerte","Heizung/Heizungsmonitor/BrennerTageswerte",false
   });
 });
 
+
+exports.tempoeraturloggingquery = v2.https.onRequest((request, response) => {
+//   const name = request.params[0].replace("/", "");
+aufraeumen("TemperaturLogging","Heizung/Temperaturlogging",false,log)
+  .then((testmessage) => {
+    if (testmessage )
+      response.send(`<h1>${testmessage}</h1>`);
+    else
+      response.send(`<h1>Keine Daten gefunden!</h1>`);
+  })
+  .catch((error) => {
+    console.log("Fehler beim Aufräumen:", error);
+    response.status(500).send("Fehler beim Aufräumen: " + error.message);
+  });
+});
+
+
+exports.temperaturtageswertequery = v2.https.onRequest((request, response) => {
+//   const name = request.params[0].replace("/", "");
+aufraeumen("TemperaturTageswerte","Heizung/Heizungsmonitor/Tageswerte",false,log)
+  .then((testmessage) => {
+    if (testmessage )
+      response.send(`<h1>${testmessage}</h1>`);
+    else
+      response.send(`<h1>Keine Daten gefunden!</h1>`);
+  })
+  .catch((error) => {
+    console.log("Fehler beim Aufräumen:", error);
+    response.status(500).send("Fehler beim Aufräumen: " + error.message);
+  });
+});
+
+
 exports.stromtageswertequery = v2.https.onRequest((request, response) => {
 aufraeumen("StromTageswerte","Stromzaehler/VerbrauchsTageswerte",false,log)
   .then((testmessage) => {
@@ -312,7 +345,7 @@ exports.accountcleanup = onSchedule("every 5 minutes", async (event) => {
 // exports.stromloggingcleanup = functions.pubsub.schedule("0 10 * * *")
 //.onRun((context) => {
 
-exports.stromloggingcleanup = onSchedule("0 7 * * *", async (event) => {
+exports.stromloggingcleanup = onSchedule("0 6 * * *", async (event) => {
   console.log("stromloggingcleanup wurde aufgerufen");
   try
   {
@@ -328,7 +361,7 @@ exports.stromloggingcleanup = onSchedule("0 7 * * *", async (event) => {
   }
 });
 
-exports.pumpenloggingcleanup = onSchedule("5 7 * * *", async (event) => {
+exports.pumpenloggingcleanup = onSchedule("5 6 * * *", async (event) => {
   console.log("pumpenloggingcleanup wurde aufgerufen");
   try
   {
@@ -346,7 +379,7 @@ exports.pumpenloggingcleanup = onSchedule("5 7 * * *", async (event) => {
 
 
 
-exports.pumpentageswertecleanup = onSchedule("10 7 * * *", async (event) => {
+exports.pumpentageswertecleanup = onSchedule("10 6 * * *", async (event) => {
   console.log("pumpentageswertecleanup wurde aufgerufen");
   try
   {
@@ -363,7 +396,7 @@ exports.pumpentageswertecleanup = onSchedule("10 7 * * *", async (event) => {
 });
 
 
-exports.stromtageswertecleanup = onSchedule("15 7 * * *", async (event) => {
+exports.stromtageswertecleanup = onSchedule("15 6 * * *", async (event) => {
   console.log("stromtageswertecleanup wurde aufgerufen");
   try
   {
@@ -380,7 +413,7 @@ exports.stromtageswertecleanup = onSchedule("15 7 * * *", async (event) => {
 });
 
 
-exports.heizungloggingcleanup = onSchedule("20 7 * * *", async (event) => {
+exports.heizungloggingcleanup = onSchedule("20 6 * * *", async (event) => {
   console.log("heizungloggingcleanup wurde aufgerufen");
   try
   {
@@ -397,11 +430,45 @@ exports.heizungloggingcleanup = onSchedule("20 7 * * *", async (event) => {
 });
 
 
-exports.heizungtageswertecleanup = onSchedule("25 7 * * *", async (event) => {
+exports.heizungtageswertecleanup = onSchedule("25 6 * * *", async (event) => {
   console.log("heizungtageswertecleanup wurde aufgerufen");
   try
   {
    const testmessage = await aufraeumen("HeizungTageswerte","Heizung/Heizungsmonitor/BrennerTageswerte",true,log);
+        if (testmessage )
+          console.log("cleanup durchgeführt:", testmessage);
+        else
+          console.log("cleanup NICHT durchgeführt");
+  }
+  catch(error)
+  {
+        console.log("Fehler beim cleanup:", error);
+  }
+});
+
+
+exports.temperaturloggingcleanup = onSchedule("30 6 * * *", async (event) => {
+  console.log("temperaturloggingcleanup wurde aufgerufen");
+  try
+  {
+   const testmessage = await aufraeumen("TemperaturLogging","Heizung/Temperaturlogging",true,log);
+        if (testmessage )
+          console.log("cleanup durchgeführt:", testmessage);
+        else
+          console.log("cleanup NICHT durchgeführt");
+  }
+  catch(error)
+  {
+        console.log("Fehler beim cleanup:", error);
+  }
+});
+
+
+exports.temperaturtageswertecleanup = onSchedule("35 6 * * *", async (event) => {
+  console.log("temperaturtageswertecleanup wurde aufgerufen");
+  try
+  {
+   const testmessage = await aufraeumen("TemperaturTageswerte","Heizung/Heizungsmonitor/Tageswerte",true,log);
         if (testmessage )
           console.log("cleanup durchgeführt:", testmessage);
         else
