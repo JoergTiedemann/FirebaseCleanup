@@ -92,10 +92,10 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
                   // var val = data[key];
                   // Gesamtaufzeit = Gesamtaufzeit + val["LoggingTagesLaufzeit"];
                   AnzahlDatasets++;
-                  if (AnzahlDatasets<10)
-                      console.log("zu loeschender Key:",key);
+                  // if (AnzahlDatasets<10)
+                  //     console.log("zu loeschender Key:",key);
                   if (boolloeschen == true) {
-                      console.log("Loeschaufruf:",key);
+                      // console.log("Loeschaufruf:",key);
                       try {
                           await ProtokollQuery.child(key).remove();
                           if (AnzahlDatasets < 5) {
