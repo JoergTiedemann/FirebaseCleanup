@@ -261,7 +261,7 @@ aufraeumen("HeizungTageswerte","Heizung/Heizungsmonitor/BrennerTageswerte",false
 });
 
 
-exports.tempoeraturloggingquery = v2.https.onRequest((request, response) => {
+exports.temperaturloggingquery = v2.https.onRequest((request, response) => {
 //   const name = request.params[0].replace("/", "");
 aufraeumen("TemperaturLogging","Heizung/Temperaturlogging",false,log)
   .then((testmessage) => {
