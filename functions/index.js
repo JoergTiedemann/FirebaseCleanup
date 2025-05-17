@@ -11,9 +11,9 @@
 
 
 // für Simulation
-const simulprefix = "Simul/Test";
+// const simulprefix = "Simul/Test";
 // fuer Produktivdatenbank
-// const simulprefix = "";
+const simulprefix = "";
 
 
 const v2 = require("firebase-functions/v2");
@@ -181,7 +181,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 1.4";
+  const message = "Firebase Cleanup Functions Version: 1.5";
   response.send(`<h1>${message}</h1>`);
 
 });
