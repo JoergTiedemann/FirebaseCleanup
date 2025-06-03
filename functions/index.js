@@ -122,7 +122,9 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
                   } 
               // Schreibe oder aktualisiere das Feld "LoeschDatum"
                 try {
-                    await ref.update({ LoeschDatum: Date().toString() })
+                   const dat = new Date();
+                   const formattedDateTime = dat.toLocaleString("de-DE", { timeZone: "Europe/Berlin" }); // Datum und Uhrzeit
+                   await ref.update({ LoeschDatum: formattedDateTime })
                       console.log("LoeschDatum erfolgreich aktualisiert!");
                   } catch (error) {
                       console.log("Fehler beim Aktualisieren von LoeschDatum:", error);
@@ -150,7 +152,9 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
                   } 
               // Schreibe oder aktualisiere das Feld "LoeschDatum"
                 try {
-                    const infostr = "Kein Aufraeumen! Tage = 0:" + Date().toString()+"Kein Aufraeumen durchgeführt"
+                    const dat = new Date();
+                    const formattedDateTime = dat.toLocaleString("de-DE", { timeZone: "Europe/Berlin" }); // Datum und Uhrzeit
+                    const infostr = "Kein Aufraeumen! Tage = 0:" + formattedDateTime + " Kein Aufraeumen durchgeführt"
                     await ref.update({ LoeschDatum: infostr })
                       console.log("LoeschDatum erfolgreich aktualisiert!");
                   } catch (error) {
@@ -181,7 +185,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 1.5";
+  const message = "Firebase Cleanup Functions Version: 1.6";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -189,7 +193,7 @@ exports.version = v2.https.onRequest((request, response) => {
 
 exports.helloworld = v2.https.onRequest((request, response) => {
   const dat = new Date();
-  const formattedDateTime = dat.toLocaleString("de-DE"); // Datum und Uhrzeit
+  const formattedDateTime = dat.toLocaleString("de-DE", { timeZone: "Europe/Berlin" }); // Datum und Uhrzeit
   const message = "Hallo Welt mit Consolenlog um:" + formattedDateTime;
   response.send(`<h1>${message}</h1>`);
 
@@ -345,7 +349,10 @@ exports.accountcleanup = onSchedule("every 5 minutes", async (event) => {
 // exports.stromloggingcleanup = functions.pubsub.schedule("0 10 * * *")
 //.onRun((context) => {
 
-exports.stromloggingcleanup = onSchedule("0 6 * * *", async (event) => {
+exports.stromloggingcleanup = onSchedule({
+  schedule: "0 6 * * *",
+  timeoutSeconds:300 //5 Minuten Timeout
+  }, async (event) => {
   console.log("stromloggingcleanup wurde aufgerufen");
   try
   {
