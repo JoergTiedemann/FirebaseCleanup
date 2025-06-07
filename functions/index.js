@@ -99,7 +99,8 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
                       try {
                           await ProtokollQuery.child(key).remove();
                           if (AnzahlDatasets < 5) {
-                              console.log(`Datensatz mit Schlüssel ${key} erfolgreich gelöscht!`);
+                              // console.log(`kein Loeschen nur Demobetrieb mit Schlüssel ${key}`);
+                             console.log(`Datensatz mit Schlüssel ${key} erfolgreich gelöscht!`);
                           }
                         } catch (error) {
                           console.log(`Fehler beim Löschen des Datensatzes mit Schlüssel ${key}:`, error);
@@ -113,10 +114,26 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
               console.log("Keine Datensätze zum Loeschen");
             }
             // Schreibe oder aktualisiere das Feld "DeletedCount"
+            // debugger;
             if (boolloeschen == true) {
                 try {
-                    await ref.update({ DeletedCount: AnzahlDatasets })
-                    console.log("DelCount erfolgreich aktualisiert!");
+                    // Hier wird das letzte Loeschdatum geselen
+                    const aktdat = new Date();
+                    var lastDeleteCount = 0;
+                    const formattedaktDate = aktdat.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }); // Nur das Datum, z.B. 7.6.2025
+                    const aktsnapshot = await ref.get();
+                    if (aktsnapshot.exists()) {
+                        const aktdat = aktsnapshot.val();
+                        LoeschDatum = aktdat.LoeschDatum;
+                        const lastdatum = LoeschDatum.split(",")[0].trim();
+                        if (formattedaktDate == lastdatum) {
+                            // Wenn das aktuelle Datum  gleich dem letzten Löschdatum ist, d.h. da wurde heute schon was geloescht
+                            lastDeleteCount = aktdat.DeletedCount;
+                        }
+                        console.log("letztes Loeschdatum:",lastdatum,"AktDatum:",formattedaktDate," Heute schon geloescht:",lastDeleteCount); 
+                    }
+                    await ref.update({ DeletedCount: lastDeleteCount+AnzahlDatasets })
+                    console.log("DelCount erfolgreich aktualisiert auf ",lastDeleteCount+AnzahlDatasets," Datensaetze");
                   } catch (error) {
                       console.log("Fehler beim Aktualisieren von DelCount:", error);
                   } 
@@ -185,7 +202,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 1.6";
+  const message = "Firebase Cleanup Functions Version: 1.7";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -329,6 +346,22 @@ aufraeumen("StromLogging","Stromzaehler/Leistungslogging",false,log)
 });
 
 
+// exports.stromloggingcleanuptest = v2.https.onRequest((request, response) => {
+//   //   const name = request.params[0].replace("/", "");
+// aufraeumen("StromLogging","Stromzaehler/Leistungslogging",true,log)
+//   .then((testmessage) => {
+//     if (testmessage )
+//       response.send(`<h1>${testmessage}</h1>`);
+//     else
+//       response.send(`<h1>Keine Daten gefunden!</h1>`);
+//   })
+//   .catch((error) => {
+//     console.log("Fehler beim Aufräumen:", error);
+//     response.status(500).send("Fehler beim Aufräumen: " + error.message);
+//   });
+// });
+
+
 // Run once a day at midnight, to clean up the users
 // Manually run the task here https://console.cloud.google.com/cloudscheduler
 //every day 00:00
@@ -353,7 +386,7 @@ exports.stromloggingcleanup = onSchedule({
   schedule: "0 6 * * *",
   timeoutSeconds:300 //5 Minuten Timeout
   }, async (event) => {
-  console.log("stromloggingcleanup wurde aufgerufen");
+  console.log("stromloggingcleanup wurde aufgerufen CloudEvent-ID:", event.id);
   try
   {
    const testmessage = await aufraeumen("StromLogging","Stromzaehler/Leistungslogging",true,log);
@@ -369,7 +402,7 @@ exports.stromloggingcleanup = onSchedule({
 });
 
 exports.pumpenloggingcleanup = onSchedule("5 6 * * *", async (event) => {
-  console.log("pumpenloggingcleanup wurde aufgerufen");
+  console.log("pumpenloggingcleanup wurde aufgerufen CloudEvent-ID:", event.id);
   try
   {
    const testmessage = await aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",true,log);
