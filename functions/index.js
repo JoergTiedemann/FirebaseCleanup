@@ -68,6 +68,10 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
         // so nun wollen wir die Daten abfragen
         var startDatum = "";
         var AnzahlTage  = cfgdata.MaxDays;
+        if ((AnzahlTage > 0) && (boolloeschen == false))
+        {
+          AnzahlTage = AnzahlTage -1; // damit wir die Werte die morgen geloescht werden sollen abfragen 
+        }
         var AnzahlDatasets = 0;
         if (AnzahlTage > 0)
         {
@@ -202,7 +206,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 1.7";
+  const message = "Firebase Cleanup Functions Version: 1.8";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -346,6 +350,39 @@ aufraeumen("StromLogging","Stromzaehler/Leistungslogging",false,log)
 });
 
 
+exports.sunlittageswertequery = v2.https.onRequest((request, response) => {
+aufraeumen("SunlitTageswerte","Sunlit/Tageswerte",false,log)
+  .then((testmessage) => {
+    if (testmessage )
+      response.send(`<h1>${testmessage}</h1>`);
+    else
+      response.send(`<h1>Keine Daten gefunden!</h1>`);
+  })
+  .catch((error) => {
+    console.log("Fehler beim Aufräumen:", error);
+    response.status(500).send("Fehler beim Aufräumen: " + error.message);
+  });
+});
+
+
+
+exports.sunlitloggingquery = v2.https.onRequest((request, response) => {
+  //   const name = request.params[0].replace("/", "");
+aufraeumen("SunlitLogging","Sunlit/Logging",false,log)
+  .then((testmessage) => {
+    if (testmessage )
+      response.send(`<h1>${testmessage}</h1>`);
+    else
+      response.send(`<h1>Keine Daten gefunden!</h1>`);
+  })
+  .catch((error) => {
+    console.log("Fehler beim Aufräumen:", error);
+    response.status(500).send("Fehler beim Aufräumen: " + error.message);
+  });
+});
+
+
+
 // exports.stromloggingcleanuptest = v2.https.onRequest((request, response) => {
 //   //   const name = request.params[0].replace("/", "");
 // aufraeumen("StromLogging","Stromzaehler/Leistungslogging",true,log)
@@ -382,11 +419,47 @@ exports.accountcleanup = onSchedule("every 5 minutes", async (event) => {
 // exports.stromloggingcleanup = functions.pubsub.schedule("0 10 * * *")
 //.onRun((context) => {
 
+exports.sunlitloggingcleanup = onSchedule({
+  schedule: "40 6 * * *",
+  timeoutSeconds:420 //7 Minuten Timeout
+  }, async (event) => {
+  console.log("sunitloggingcleanup wurde aufgerufen");
+  try
+  {
+   const testmessage = await aufraeumen("SunlitLogging","Sunlit/Logging",true,log);
+        if (testmessage )
+          console.log("cleanup durchgeführt:", testmessage);
+        else
+          console.log("cleanup NICHT durchgeführt");
+  }
+  catch(error)
+  {
+        console.log("Fehler beim cleanup:", error);
+  }
+});
+
+exports.sunlittageswertecleanup = onSchedule("45 6 * * *", async (event) => {
+  console.log("sunlittageswertecleanup wurde aufgerufen");
+  try
+  {
+   const testmessage = await aufraeumen("SunlitTageswerte","Sunlit/Tageswerte",true,log);
+        if (testmessage )
+          console.log("cleanup durchgeführt:", testmessage);
+        else
+          console.log("cleanup NICHT durchgeführt");
+  }
+  catch(error)
+  {
+        console.log("Fehler beim cleanup:", error);
+  }
+});
+
+
 exports.stromloggingcleanup = onSchedule({
   schedule: "0 6 * * *",
-  timeoutSeconds:300 //5 Minuten Timeout
+  timeoutSeconds:420 //7 Minuten Timeout
   }, async (event) => {
-  console.log("stromloggingcleanup wurde aufgerufen CloudEvent-ID:", event.id);
+  console.log("stromloggingcleanup wurde aufgerufen");
   try
   {
    const testmessage = await aufraeumen("StromLogging","Stromzaehler/Leistungslogging",true,log);
@@ -402,7 +475,7 @@ exports.stromloggingcleanup = onSchedule({
 });
 
 exports.pumpenloggingcleanup = onSchedule("5 6 * * *", async (event) => {
-  console.log("pumpenloggingcleanup wurde aufgerufen CloudEvent-ID:", event.id);
+  console.log("pumpenloggingcleanup wurde aufgerufen");
   try
   {
    const testmessage = await aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",true,log);
