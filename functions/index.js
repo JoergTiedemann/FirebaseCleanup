@@ -206,9 +206,115 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 1.8";
+  const message = "Firebase Cleanup Functions Version: 2.0";
   response.send(`<h1>${message}</h1>`);
 
+});
+
+exports.setuserrole = v2.https.onRequest(async (req, res) => {
+  const email = req.query.email;
+  const role = req.query.role;
+
+  if (!email || !role) {
+    return res.status(400).send("Fehlende Parameter: email und role sind erforderlich.<BR> Beispiel:<BR>https://europe-west1-dein-projekt.cloudfunctions.net/setuserrole?email=benutzer@example.com&role=techniker");
+  }
+
+  try {
+    const userRecord = await admin.auth().getUserByEmail(email);
+    const uid = userRecord.uid;
+
+    await admin.auth().setCustomUserClaims(uid, { role: role });
+    const message = `Rolle '${role}' für Benutzer ${email} erfolgreich gesetzt.`;
+
+    res.status(200).send(`<h1>${message}</h1>`);
+  } catch (error) {
+    console.error("Fehler beim Setzen der Rolle:", error);
+    res.status(500).send("Fehler beim Setzen der Rolle.");
+  }
+});
+
+
+exports.getuserrole = v2.https.onRequest(async (req, res) => {
+  const email = req.query.email;
+  if (!email) {
+    return res.status(400).send("Fehlender Parameter: 'email' ist erforderlich.<BR>Beispiel:<BR>https://europe-west1-DEIN_PROJEKT.cloudfunctions.net/getUserRole?email=benutzer@example.com");
+  }
+
+  try {
+    // Benutzer anhand der E-Mail-Adresse suchen
+    const userRecord = await admin.auth().getUserByEmail(email);
+
+    // Custom Claims auslesen
+    const claims = userRecord.customClaims || {};
+
+    const role = claims.role || "Keine Rolle gesetzt";
+    // res.status(200).send(`Benutzer: ${email}\nRolle: ${role}`);
+    const message = `Benutzer: ${email}<br>Rolle: ${role}`;
+    res.status(200).send(`<h1>${message}</h1>`);
+
+  } catch (error) {
+    console.error("Fehler beim Auslesen der Rolle:", error);
+    res.status(500).send("Fehler beim Abrufen der Benutzerrolle.");
+  }
+});
+
+exports.listuserroles = v2.https.onRequest(async (req, res) => {
+  try {
+    let html = `
+      <html>
+        <head>
+          <title>Benutzerrollen</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 2rem; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid #ccc; padding: 0.75rem; text-align: left; }
+            th { background-color: #f4f4f4; }
+            tr:nth-child(even) { background-color: #fafafa; }
+            .admin { color: green; font-weight: bold; }
+            .maschine { color: blue; font-weight: bold; }
+            .standard { color: gray; font-weight: bold; }
+            .keine { color: red; font-style: italic; }
+          </style>
+        </head>
+        <body>
+          <h2>Benutzerrollenübersicht</h2>
+          <table>
+            <tr>
+              <th>E-Mail</th>
+              <th>Rolle</th>
+            </tr>
+    `;
+
+    let nextPageToken;
+    do {
+      const result = await admin.auth().listUsers(1000, nextPageToken);
+      result.users.forEach(user => {
+        const email = user.email || "Kein E-Mail";
+        const claims = user.customClaims || {};
+        const role = claims.role || "Keine Rolle gesetzt";
+
+        // CSS-Klasse abhängig von der Rolle
+        const cssClass = (role === "admin") || (role === "administrator") ? "admin"
+                        : role === "maschine" ? "maschine"
+                        : role === "reader" ? "standard"
+                        : "keine";
+
+        html += `<tr><td>${email}</td><td class="${cssClass}">${role}</td></tr>`;
+      });
+      nextPageToken = result.pageToken;
+    } while (nextPageToken);
+
+    html += `
+          </table>
+        </body>
+      </html>
+    `;
+
+    res.status(200).send(html);
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Benutzerrollen:", error);
+    res.status(500).send("<h1>Fehler beim Abrufen der Rollen</h1>");
+  }
 });
 
 
