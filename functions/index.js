@@ -18,6 +18,13 @@ const simulprefix = "";
 
 const v2 = require("firebase-functions/v2");
 
+// 1. v1-Core-Modul für Triggers -> V1 verwenden weil der auth Emulator nicht mit V2 funktioniert
+const functionsv1 = require("firebase-functions/v1");
+
+
+// const { onUserCreated } = require("firebase-functions/v2/auth");
+
+
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {log} = require("firebase-functions/logger");
 
@@ -206,7 +213,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 2.0";
+  const message = "Firebase Cleanup Functions Version: 2.1";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -317,6 +324,32 @@ exports.listuserroles = v2.https.onRequest(async (req, res) => {
   }
 });
 
+// V2 Version
+// exports.setCustomUserClaims = onUserCreated(async (event) => {
+//   const user = event.data;
+
+//   try {
+//     await admin.auth().setCustomUserClaims(user.uid, { role: "Nachbar" });
+//     console.log(`Custom Claim gesetzt für User ${user.uid}`);
+//   } catch (error) {
+//     console.error("Fehler beim Setzen der Claims:", error);
+//   }
+// });
+
+
+
+exports.setcustomuserclaims = functionsv1.auth.user().onCreate(async (user) => {
+  
+  try {
+    // Rolle "Nachbar" als Claim hinterlegen fuer alle neu angelegten Benutzer
+    await admin.auth().setCustomUserClaims(user.uid, { role: "Nachbar" });
+    console.log(`Custom Claim 'role:Nachbar' für User ${user.uid} gesetzt.`);
+  } catch (error) {
+    console.error(`Fehler beim Setzen der Claims für User ${user.uid}:`, error);
+  }
+
+});
+
 
 exports.helloworld = v2.https.onRequest((request, response) => {
   const dat = new Date();
@@ -342,6 +375,7 @@ aufraeumen("PumpenLogging","Wasserwerk/Pumpenlogging",false,log)
     response.status(500).send("Fehler beim Aufräumen: " + error.message);
   });
 });
+
 
 
 exports.pumpentageswertequery = v2.https.onRequest((request, response) => {
