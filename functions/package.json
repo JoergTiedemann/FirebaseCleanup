@@ -4,19 +4,19 @@
   "scripts": {
     "lint": "eslint .",
     "dev": "firebase emulators:start --inspect-functions --only functions ",
-    "serve": "firebase emulators:start --only functions",
+    "serve": "firebase emulators:start --only auth,functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log"
   },
   "engines": {
-    "node": "22"
+    "node": "20"
   },
   "main": "index.js",
   "dependencies": {
     "firebase-admin": "^12.6.0",
-    "firebase-functions": "^6.3.2"
+    "firebase-functions": "^6.4.0"
   },
   "devDependencies": {
     "eslint": "^8.15.0",
