@@ -21,8 +21,10 @@ const v2 = require("firebase-functions/v2");
 // 1. v1-Core-Modul für Triggers -> V1 verwenden weil der auth Emulator nicht mit V2 funktioniert
 const functionsv1 = require("firebase-functions/v1");
 
+const functions = require("firebase-functions");
 
 // const { onUserCreated } = require("firebase-functions/v2/auth");
+const nodemailer = require("nodemailer");
 
 
 const {onSchedule} = require("firebase-functions/v2/scheduler");
@@ -30,6 +32,32 @@ const {log} = require("firebase-functions/logger");
 
 const admin = require("firebase-admin");
 admin.initializeApp();
+
+const fs = require("fs");
+let gmailConfig;
+
+// Versuch, die lokale runtimeconfig zu laden und daraus das App-Passwort zu extraieren dann bauen wir aber noch was dazu damit das echte Passwort nicht in git gespeichert ist
+// e s l int-disable-next-line no-unused-vars
+try {
+  const raw = fs.readFileSync(__dirname + "/runtimeconfig.json");
+  gmailConfig = JSON.parse(raw).gmail;
+  gmailConfig.password = gmailConfig.password+"pdpcfv";
+}
+catch (error) {
+  // Fallback auf Firebase Functions Runtime
+  gmailConfig = functions.config().gmail;
+}
+
+console.log("Gmail Config:", gmailConfig);
+
+const {email: gmailEmail, password: gmailPassword} = gmailConfig;
+
+// Beispiel Nodemailer-Setup
+const mailTransport = nodemailer.createTransport({
+  service: "gmail",
+  auth: {user: gmailEmail, pass: gmailPassword}
+});
+
 
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started
@@ -213,7 +241,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 2.1";
+  const message = "Firebase Cleanup Functions Version: 2.2";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -324,6 +352,143 @@ exports.listuserroles = v2.https.onRequest(async (req, res) => {
   }
 });
 
+// Funktion mit der die aktuellen Benutzer angezeigt werden und vorhandene Benutzer geloescht werden können
+exports.manageUserRoles = v2.https.onRequest(async (req, res) => {
+  try {
+    const isPost = req.method === "POST";
+    // const deleteIndex = isPost ? parseInt(req.body?.deleteIndex) : null;
+    const deleteIndex = isPost && req.body && req.body.deleteIndex
+    ? parseInt(req.body.deleteIndex, 10)
+    : null;
+
+    let deletedEmail = null;
+
+    // POST: Benutzer löschen und Redirect mit Parameter
+    if (isPost && !isNaN(deleteIndex) && deleteIndex >= 0) {
+      let allUsers = [];
+      let nextPageToken;
+      do {
+        const result = await admin.auth().listUsers(1000, nextPageToken);
+        allUsers = allUsers.concat(result.users);
+        nextPageToken = result.pageToken;
+      } while (nextPageToken);
+
+      if (deleteIndex < allUsers.length) {
+        const userToDelete = allUsers[deleteIndex];
+        await admin.auth().deleteUser(userToDelete.uid);
+        deletedEmail = userToDelete.email || "Unbekannt";
+      }
+
+      return res.redirect(303, `/?deleted=${encodeURIComponent(deletedEmail)}`);
+    }
+
+    // GET: Nutzerliste abrufen
+    let usersList = [];
+    let nextPageToken;
+    do {
+      const result = await admin.auth().listUsers(1000, nextPageToken);
+      usersList = usersList.concat(result.users);
+      nextPageToken = result.pageToken;
+    } while (nextPageToken);
+
+    // Erfolgsmeldung und History-Cleanup
+    const deletedParam = req.query.deleted
+      ? decodeURIComponent(req.query.deleted)
+      : null;
+    const deleteMessage = deletedParam
+      ? `<p id="deleteMsg" style="color: green;">
+           ✅ Benutzer <strong>${deletedParam}</strong> wurde gelöscht.
+         </p>
+         <script>
+           window.addEventListener('load', () => {
+             history.replaceState(null, '', window.location.pathname);
+           });
+         </script>`
+      : "";
+
+    // Email-Array für Bestätigungsdialog
+    const emailList = usersList
+      .map(u => `"${u.email || "Kein E-Mail"}"`)
+      .join(",");
+
+    // HTML-Antwort aufbauen
+    let html = `
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Benutzerrollenverwaltung</title>
+    <style>
+      body { font-family: Arial; padding: 2rem; }
+      table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+      th, td { border: 1px solid #ccc; padding: 0.75rem; }
+      th { background-color: #f0f0f0; }
+      tr:nth-child(even) { background-color: #fafafa; }
+      .admin { color: green; font-weight: bold; }
+      .maschine { color: blue; font-weight: bold; }
+      .standard { color: gray; font-weight: bold; }
+      .keine { color: red; font-style: italic; }
+    </style>
+    <script>
+      const emails = [${emailList}];
+      function confirmDeletion() {
+        const idx = parseInt(document.getElementById('deleteIndex').value, 10);
+        if (isNaN(idx) || idx < 0 || idx >= emails.length) {
+          alert('Ungültiger Index!');
+          return false;
+        }
+        return confirm("Soll der Benutzer:'" + emails[idx] + "'wirklich gelöscht werden ?");
+      }
+    </script>
+  </head>
+  <body>
+    <h2>Benutzerrollenübersicht</h2>
+    ${deleteMessage}
+    <form method="POST" onsubmit="return confirmDeletion();">
+      <label for="deleteIndex">Index zum Löschen:</label>
+      <input
+        type="number"
+        name="deleteIndex"
+        id="deleteIndex"
+        required
+        min="0"
+        max="${usersList.length - 1}"
+      />
+      <button type="submit">Löschen</button>
+    </form>
+    <table>
+      <tr><th>#</th><th>E-Mail</th><th>Rolle</th></tr>`;
+
+    usersList.forEach((user, index) => {
+      const email = user.email || "Kein E-Mail";
+      const role = (user.customClaims && user.customClaims.role) || "Keine Rolle gesetzt";
+      const cssClass =
+        role === "admin" ? "admin" :
+        role === "maschine" ? "maschine" :
+        role === "reader" ? "standard" :
+        "keine";
+      html += `<tr>
+        <td>${index}</td>
+        <td>${email}</td>
+        <td class="${cssClass}">${role}</td>
+      </tr>`;
+    });
+
+    html += `
+    </table>
+  </body>
+</html>`;
+
+    res.status(200).send(html);
+
+  } catch (error) {
+    console.error("Fehler beim Verarbeiten:", error);
+    res.status(500).send("<h1>🚨 Interner Fehler</h1>");
+  }
+});
+
+
+
+
 // V2 Version
 // exports.setCustomUserClaims = onUserCreated(async (event) => {
 //   const user = event.data;
@@ -341,13 +506,32 @@ exports.listuserroles = v2.https.onRequest(async (req, res) => {
 exports.setcustomuserclaims = functionsv1.auth.user().onCreate(async (user) => {
   
   try {
+    // 1) Rolle "Nachbar" setzen
     // Rolle "Nachbar" als Claim hinterlegen fuer alle neu angelegten Benutzer
     await admin.auth().setCustomUserClaims(user.uid, { role: "Nachbar" });
     console.log(`Custom Claim 'role:Nachbar' für User ${user.uid} gesetzt.`);
+
+    // 2) E-Mail vorbereiten
+    const mailOptions = {
+      from: `Firebase-App <${gmailEmail}>`,
+      to: "joerg-tiedemann@gmx.de",
+      subject: "🔔 Neuer Benutzer angelegt",
+      text: [
+        "Ein neuer Benutzer wurde im Pumpenmonitor-Projekt angelegt:",
+        `UID: ${user.uid}`,
+        `E-Mail: ${user.email || "Keine E-Mail-Adresse"}`,
+        `Display Name: ${user.displayName || "Nicht gesetzt"}`,
+        `Account erstellt: ${user.metadata.creationTime}`,
+      ].join("\n"),
+    };
+
+    // 3) E-Mail versenden
+    await mailTransport.sendMail(mailOptions);
+    console.log(`E-Mail-Benachrichtigung an ${mailOptions.to} versendet.`);
+
   } catch (error) {
     console.error(`Fehler beim Setzen der Claims für User ${user.uid}:`, error);
   }
-
 });
 
 

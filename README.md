@@ -17,6 +17,37 @@ normalerweise wird die node engine 22 verwendet. Da aber der Trigger setcustomus
   },
   ```
 
+### versenden von E-Mails bei neu Anlegen eines users
+Beim Neuanlegen eines Users wird eine E-Mail von tiedemann.joerg@gmail.com an joerg-tiedemann@gmx.de geschickt
+Die Zugangsdaten zu tiedemann.joerg@gmail.com sind in runtimeconfig.json gespeichert das bei npm run serve lokal geladen wird.
+Das geht natürrlich nicht in der Cloud, dort wird die Firebase Config Var gelesen. Das ist quasi ein Configspeicher für firebase in der Cloud.
+Dieser wird wie folgt gesetzt:
+```
+firebase functions:config:set gmail.email="tiedemann.joerg@gmail.com"
+firebase functions:config:set gmail.password="DEIN_GMAIL_APP_PASSWORT"
+```
+
+Ausgelesenn wird dieser Speicher im Komandoprompt mit 
+```
+firebase functions:config:get
+```
+oder bei Starten der Cloudfunktion durch demn javascript code
+```
+gmailConfig = functions.config().gmail;
+```
+
+Als Passwort wird ein App-Passwort verwendet, da die 2-Faktor Authentifizierung bei Google aktiviert ist. Dieses App Passwort
+wird wie folgt erzeugt:
+- Melde dich in deinem Google-Konto an und öffne den Bereich „Sicherheit“.
+- Stelle sicher, dass die „Bestätigung in zwei Schritten“ aktiviert ist.
+- Scrolle zu „App-Passwörter“ und klicke auf „Passwort erstellen“.
+- Wähle als App „Mail“ und als Gerät z. B. „Andere (Custom)“ und gib z. B. „Nodemailer“ ein.
+- Kopiere das generierte 16-stellige Passwort.
+
+Zum eigentlichen versenden von E-Mails wird nodemailer verwendet.
+Das wars, ziemlich kompliziert aber auch ziemlich cool.
+
+
 ## Test
 Zum Testen ```npm run serve``` eingeben
 Im Unterverzeichnis functions !
