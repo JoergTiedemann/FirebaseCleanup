@@ -6,7 +6,7 @@
  *
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
-
+// Pass for gmail wokwkphnkt+pdpcfv
 // const {onRequest} = require("firebase-functions/v2/https");
 
 
@@ -38,10 +38,16 @@ let gmailConfig;
 
 // Versuch, die lokale runtimeconfig zu laden und daraus das App-Passwort zu extraieren dann bauen wir aber noch was dazu damit das echte Passwort nicht in git gespeichert ist
 // e s l int-disable-next-line no-unused-vars
+const startChar = "a";
+const resultChar = String.fromCharCode(startChar.charCodeAt(0) + 22);
+const resultLastChar = "pdpcf" + String.fromCharCode(startChar.charCodeAt(0) + 21);
+console.log("First:", resultChar, " Last", resultLastChar);
+
 try {
   const raw = fs.readFileSync(__dirname + "/runtimeconfig.json");
   gmailConfig = JSON.parse(raw).gmail;
-  gmailConfig.password = gmailConfig.password+"pdpcfv";
+  gmailConfig.password = resultChar + "okwkphnkt"+resultLastChar;
+  // console.log("Passwortt:",gmailConfig.password);
 }
 catch (error) {
   // Fallback auf Firebase Functions Runtime
@@ -241,7 +247,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 2.2";
+  const message = "Firebase Cleanup Functions Version: 2.3";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -331,7 +337,7 @@ exports.listuserroles = v2.https.onRequest(async (req, res) => {
         // CSS-Klasse abhängig von der Rolle
         const cssClass = (role === "admin") || (role === "administrator") ? "admin"
                         : role === "maschine" ? "maschine"
-                        : role === "reader" ? "standard"
+                        : role === "Nachbar" ? "standard"
                         : "keine";
 
         html += `<tr><td>${email}</td><td class="${cssClass}">${role}</td></tr>`;
@@ -464,7 +470,7 @@ exports.manageUserRoles = v2.https.onRequest(async (req, res) => {
       const cssClass =
         role === "admin" ? "admin" :
         role === "maschine" ? "maschine" :
-        role === "reader" ? "standard" :
+        role === "Nachbar" ? "standard" :
         "keine";
       html += `<tr>
         <td>${index}</td>
@@ -513,7 +519,7 @@ exports.setcustomuserclaims = functionsv1.auth.user().onCreate(async (user) => {
 
     // 2) E-Mail vorbereiten
     const mailOptions = {
-      from: `Firebase-App <${gmailEmail}>`,
+      from: `Pumpenmonitor-App <${gmailEmail}>`,
       to: "joerg-tiedemann@gmx.de",
       subject: "🔔 Neuer Benutzer angelegt",
       text: [
@@ -522,7 +528,19 @@ exports.setcustomuserclaims = functionsv1.auth.user().onCreate(async (user) => {
         `E-Mail: ${user.email || "Keine E-Mail-Adresse"}`,
         `Display Name: ${user.displayName || "Nicht gesetzt"}`,
         `Account erstellt: ${user.metadata.creationTime}`,
+        "",
+        "Benutzerverwaltung: https://us-central1-espdata-b473e.cloudfunctions.net/manageUserRoles"
       ].join("\n"),
+      html: [
+          "<p>Ein neuer Benutzer wurde im Pumpenmonitor-Projekt angelegt:</p>",
+          `<ul>
+            <li>UID: ${user.uid}</li>
+            <li>E-Mail: ${user.email || "Keine E-Mail-Adresse"}</li>
+            <li>Display Name: ${user.displayName || "Nicht gesetzt"}</li>
+            <li>Account erstellt: ${user.metadata.creationTime}</li>
+          </ul>`,
+          `<p><a href="https://us-central1-espdata-b473e.cloudfunctions.net/manageUserRoles">Zur Benutzerverwaltung</a></p>`
+        ].join("")      
     };
 
     // 3) E-Mail versenden
