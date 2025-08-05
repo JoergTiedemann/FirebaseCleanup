@@ -247,7 +247,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 2.3";
+  const message = "Firebase Cleanup Functions Version: 2.4";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -529,7 +529,7 @@ exports.setcustomuserclaims = functionsv1.auth.user().onCreate(async (user) => {
         `Display Name: ${user.displayName || "Nicht gesetzt"}`,
         `Account erstellt: ${user.metadata.creationTime}`,
         "",
-        "Benutzerverwaltung: https://us-central1-espdata-b473e.cloudfunctions.net/manageUserRoles"
+        "Benutzerverwaltung: https://manageuserroles-i3lrfp7ewq-uc.a.run.app"
       ].join("\n"),
       html: [
           "<p>Ein neuer Benutzer wurde im Pumpenmonitor-Projekt angelegt:</p>",
@@ -539,7 +539,7 @@ exports.setcustomuserclaims = functionsv1.auth.user().onCreate(async (user) => {
             <li>Display Name: ${user.displayName || "Nicht gesetzt"}</li>
             <li>Account erstellt: ${user.metadata.creationTime}</li>
           </ul>`,
-          `<p><a href="https://us-central1-espdata-b473e.cloudfunctions.net/manageUserRoles">Zur Benutzerverwaltung</a></p>`
+          `<p><a href="https://manageuserroles-i3lrfp7ewq-uc.a.run.app">Zur Benutzerverwaltung</a></p>`
         ].join("")      
     };
 
