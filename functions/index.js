@@ -247,7 +247,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 2.5";
+  const message = "Firebase Cleanup Functions Version: 2.6";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -360,18 +360,18 @@ exports.listuserroles = v2.https.onRequest(async (req, res) => {
 
 
 exports.listUsers = v2.https.onRequest(async (req, res) => {
-  // const authHeader = req.headers.authorization;
-  // if (!authHeader || !authHeader.startsWith("Bearer ")) {
-  //   return res.status(401).send("Nicht authentifiziert.");
-  // }
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).send("Nicht authentifiziert.");
+  }
 
-  // const idToken = authHeader.split("Bearer ")[1];
+  const idToken = authHeader.split("Bearer ")[1];
 
   try {
-    // const decodedToken = await admin.auth().verifyIdToken(idToken);
-    // if (decodedToken.role !== "admin") {
-    //   return res.status(403).send("Keine Admin-Berechtigung.");
-    // }
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    if (decodedToken.role !== "admin") {
+      return res.status(403).send("Keine Admin-Berechtigung.");
+    }
 
     const users = [];
     let nextPageToken;
