@@ -26,6 +26,8 @@ const functions = require("firebase-functions");
 // const { onUserCreated } = require("firebase-functions/v2/auth");
 const nodemailer = require("nodemailer");
 
+const cors = require("cors")({origin: true}); // ← erlaubt alle Domains
+
 
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {log} = require("firebase-functions/logger");
@@ -247,31 +249,98 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 2.5";
+  const message = "Firebase Cleanup Functions Version: 2.7";
   response.send(`<h1>${message}</h1>`);
 
 });
 
+exports.deleteUser = v2.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).send("Client nicht autorisiert: Kein gültiger Token.");
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(idToken);
+    } catch (error) {
+      console.error("Token ungültig:", error);
+      return res.status(403).send("Token ungültig oder abgelaufen.");
+    }
+
+    // Nur Admins dürfen löschen
+    if (decodedToken.role !== "admin") {
+      return res.status(403).send("Zugriff verweigert: Client hat keine Admin-Berechtigung.");
+    }
+
+    const email = req.query.email;
+    if (!email) {
+      return res.status(400).send("Fehlender Parameter: email ist erforderlich.");
+    }
+
+    try {
+      const userRecord = await admin.auth().getUserByEmail(email);
+      await admin.auth().deleteUser(userRecord.uid);
+      res.status(200).send(`Benutzer mit Email ${email} erfolgreich gelöscht.`);
+    } catch (error) {
+      console.error("Fehler beim Löschen des Nutzers:", error);
+      res.status(500).send("Fehler beim Löschen des Nutzers.");
+    }
+  });
+});
+
+
 exports.setuserrole = v2.https.onRequest(async (req, res) => {
-  const email = req.query.email;
-  const role = req.query.role;
+  cors(req, res, async () => {
+    const authHeader = req.headers.authorization;
 
-  if (!email || !role) {
-    return res.status(400).send("Fehlende Parameter: email und role sind erforderlich.<BR> Beispiel:<BR>https://europe-west1-dein-projekt.cloudfunctions.net/setuserrole?email=benutzer@example.com&role=techniker");
-  }
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).send("Client nicht autorisiert: Kein gültiger Token.");
+    }
 
-  try {
-    const userRecord = await admin.auth().getUserByEmail(email);
-    const uid = userRecord.uid;
+    const idToken = authHeader.split("Bearer ")[1];
 
-    await admin.auth().setCustomUserClaims(uid, { role: role });
-    const message = `Rolle '${role}' für Benutzer ${email} erfolgreich gesetzt.`;
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(idToken);
+    } catch (error) {
+      console.error("Token ungültig:", error);
+      return res.status(403).send("Token ungültig oder abgelaufen.");
+    }
 
-    res.status(200).send(`<h1>${message}</h1>`);
-  } catch (error) {
-    console.error("Fehler beim Setzen der Rolle:", error);
-    res.status(500).send("Fehler beim Setzen der Rolle.");
-  }
+    // Nur Admins dürfen Rollen setzen
+    if (decodedToken.role !== "admin") {
+      return res.status(403).send("Zugriff verweigert: Client hat keine Admin-Berechtigung.");
+    }
+
+    const email = req.query.email;
+    const role = req.query.role;
+
+    if (!email || !role) {
+      return res.status(400).send(
+        "Fehlende Parameter: email und role sind erforderlich.<br>" +
+        "Beispiel:<br>" +
+        "https://europe-west1-dein-projekt.cloudfunctions.net/setuserrole?email=benutzer@example.com&role=techniker"
+      );
+    }
+
+    try {
+      const userRecord = await admin.auth().getUserByEmail(email);
+      const uid = userRecord.uid;
+
+      await admin.auth().setCustomUserClaims(uid, { role: role });
+
+      const message = `Rolle '${role}' für Benutzer ${email} erfolgreich gesetzt.`;
+      res.status(200).send(`<h1>${message}</h1>`);
+    } catch (error) {
+      console.error("Fehler beim Setzen der Rolle:", error);
+      res.status(500).send("Fehler beim Setzen der Rolle.");
+    }
+  });
 });
 
 
@@ -359,42 +428,47 @@ exports.listuserroles = v2.https.onRequest(async (req, res) => {
 });
 
 
-exports.listUsers = v2.https.onRequest(async (req, res) => {
-  // const authHeader = req.headers.authorization;
-  // if (!authHeader || !authHeader.startsWith("Bearer ")) {
-  //   return res.status(401).send("Nicht authentifiziert.");
-  // }
 
-  // const idToken = authHeader.split("Bearer ")[1];
+exports.listUsers = v2.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).send("Client nicht authentifiziert.");
+    }
 
-  try {
-    // const decodedToken = await admin.auth().verifyIdToken(idToken);
-    // if (decodedToken.role !== "admin") {
-    //   return res.status(403).send("Keine Admin-Berechtigung.");
-    // }
+    const idToken = authHeader.split("Bearer ")[1];
 
-    const users = [];
-    let nextPageToken;
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      if (decodedToken.role !== "admin") {
+        return res.status(403).send("Client hat keine Admin-Berechtigung.");
+      }
 
-    do {
-      const result = await admin.auth().listUsers(1000, nextPageToken);
-      result.users.forEach(user => {
-        users.push({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName || "",
-          role: user.customClaims?.role || "keine",
+      const users = [];
+      let nextPageToken;
+
+      do {
+        const result = await admin.auth().listUsers(1000, nextPageToken);
+        result.users.forEach(user => {
+          users.push({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || "",
+            role: user.customClaims?.role || "keine",
+          });
         });
-      });
-      nextPageToken = result.pageToken;
-    } while (nextPageToken);
+        nextPageToken = result.pageToken;
+      } while (nextPageToken);
 
-    res.json({ users });
-  } catch (error) {
-    console.error("Fehler beim Abrufen der Nutzer:", error);
-    res.status(500).send("Interner Fehler.");
-  }
+      res.json({ users });
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Benutzer:", error);
+      res.status(500).send("Interner Fehler.");
+    }
+  });
 });
+
+
 
 // Funktion mit der die aktuellen Benutzer angezeigt werden und vorhandene Benutzer geloescht werden können
 exports.manageUserRoles = v2.https.onRequest(async (req, res) => {
