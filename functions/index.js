@@ -26,6 +26,8 @@ const functions = require("firebase-functions");
 // const { onUserCreated } = require("firebase-functions/v2/auth");
 const nodemailer = require("nodemailer");
 
+const cors = require("cors")({origin: true}); // ← erlaubt alle Domains
+
 
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {log} = require("firebase-functions/logger");
@@ -359,42 +361,52 @@ exports.listuserroles = v2.https.onRequest(async (req, res) => {
 });
 
 
-exports.listUsers = v2.https.onRequest(async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).send("Nicht authentifiziert.");
-  }
+exports.listUsers = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    // deine Logik hier
+  });
+});
 
-  const idToken = authHeader.split("Bearer ")[1];
-
-  try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    if (decodedToken.role !== "admin") {
-      return res.status(403).send("Keine Admin-Berechtigung.");
+exports.listUsers = v2.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).send("Aufrufer nicht authentifiziert.");
     }
 
-    const users = [];
-    let nextPageToken;
+    const idToken = authHeader.split("Bearer ")[1];
 
-    do {
-      const result = await admin.auth().listUsers(1000, nextPageToken);
-      result.users.forEach(user => {
-        users.push({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName || "",
-          role: user.customClaims?.role || "keine",
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      if (decodedToken.role !== "admin") {
+        return res.status(403).send("Aufrufer hat keine Admin-Berechtigung.");
+      }
+
+      const users = [];
+      let nextPageToken;
+
+      do {
+        const result = await admin.auth().listUsers(1000, nextPageToken);
+        result.users.forEach(user => {
+          users.push({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || "",
+            role: user.customClaims?.role || "keine",
+          });
         });
-      });
-      nextPageToken = result.pageToken;
-    } while (nextPageToken);
+        nextPageToken = result.pageToken;
+      } while (nextPageToken);
 
-    res.json({ users });
-  } catch (error) {
-    console.error("Fehler beim Abrufen der Nutzer:", error);
-    res.status(500).send("Interner Fehler.");
-  }
+      res.json({ users });
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Benutzer:", error);
+      res.status(500).send("Interner Fehler.");
+    }
+  });
 });
+
+
 
 // Funktion mit der die aktuellen Benutzer angezeigt werden und vorhandene Benutzer geloescht werden können
 exports.manageUserRoles = v2.https.onRequest(async (req, res) => {
