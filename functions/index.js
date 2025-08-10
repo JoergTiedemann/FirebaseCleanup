@@ -247,7 +247,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 2.4";
+  const message = "Firebase Cleanup Functions Version: 2.5";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -355,6 +355,44 @@ exports.listuserroles = v2.https.onRequest(async (req, res) => {
   } catch (error) {
     console.error("Fehler beim Abrufen der Benutzerrollen:", error);
     res.status(500).send("<h1>Fehler beim Abrufen der Rollen</h1>");
+  }
+});
+
+
+exports.listUsers = v2.https.onRequest(async (req, res) => {
+  // const authHeader = req.headers.authorization;
+  // if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  //   return res.status(401).send("Nicht authentifiziert.");
+  // }
+
+  // const idToken = authHeader.split("Bearer ")[1];
+
+  try {
+    // const decodedToken = await admin.auth().verifyIdToken(idToken);
+    // if (decodedToken.role !== "admin") {
+    //   return res.status(403).send("Keine Admin-Berechtigung.");
+    // }
+
+    const users = [];
+    let nextPageToken;
+
+    do {
+      const result = await admin.auth().listUsers(1000, nextPageToken);
+      result.users.forEach(user => {
+        users.push({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || "",
+          role: user.customClaims?.role || "keine",
+        });
+      });
+      nextPageToken = result.pageToken;
+    } while (nextPageToken);
+
+    res.json({ users });
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Nutzer:", error);
+    res.status(500).send("Interner Fehler.");
   }
 });
 
