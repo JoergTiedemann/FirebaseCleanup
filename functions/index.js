@@ -15,57 +15,24 @@
 // fuer Produktivdatenbank
 const simulprefix = "";
 
-
 const v2 = require("firebase-functions/v2");
 
 // 1. v1-Core-Modul für Triggers -> V1 verwenden weil der auth Emulator nicht mit V2 funktioniert
 const functionsv1 = require("firebase-functions/v1");
-
-const functions = require("firebase-functions");
+const { defineSecret } = require("firebase-functions/params");
+const gmailEmailSecret = defineSecret("GMAIL_EMAIL");
+const gmailPasswordSecret = defineSecret("GMAIL_PASSWORD");
 
 // const { onUserCreated } = require("firebase-functions/v2/auth");
 const nodemailer = require("nodemailer");
 
 const cors = require("cors")({origin: true}); // ← erlaubt alle Domains
 
-
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {log} = require("firebase-functions/logger");
 
 const admin = require("firebase-admin");
 admin.initializeApp();
-
-const fs = require("fs");
-let gmailConfig;
-
-// Versuch, die lokale runtimeconfig zu laden und daraus das App-Passwort zu extraieren dann bauen wir aber noch was dazu damit das echte Passwort nicht in git gespeichert ist
-// e s l int-disable-next-line no-unused-vars
-const startChar = "a";
-const resultChar = String.fromCharCode(startChar.charCodeAt(0) + 22);
-const resultLastChar = "pdpcf" + String.fromCharCode(startChar.charCodeAt(0) + 21);
-console.log("First:", resultChar, " Last", resultLastChar);
-
-try {
-  const raw = fs.readFileSync(__dirname + "/runtimeconfig.json");
-  gmailConfig = JSON.parse(raw).gmail;
-  gmailConfig.password = resultChar + "okwkphnkt"+resultLastChar;
-  // console.log("Passwortt:",gmailConfig.password);
-}
-catch (error) {
-  // Fallback auf Firebase Functions Runtime
-  gmailConfig = functions.config().gmail;
-}
-
-console.log("Gmail Config:", gmailConfig);
-
-const {email: gmailEmail, password: gmailPassword} = gmailConfig;
-
-// Beispiel Nodemailer-Setup
-const mailTransport = nodemailer.createTransport({
-  service: "gmail",
-  auth: {user: gmailEmail, pass: gmailPassword}
-});
-
 
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started
@@ -249,7 +216,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 2.8";
+  const message = "Firebase Cleanup Functions Version: 2.9";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -384,49 +351,100 @@ exports.listUsers = v2.https.onRequest((req, res) => {
 });
 
 
-exports.setcustomuserclaims = functionsv1.auth.user().onCreate(async (user) => {
-  
-  try {
-    // 1) Rolle "Nachbar" setzen
-    // Rolle "Nachbar" als Claim hinterlegen fuer alle neu angelegten Benutzer
-    await admin.auth().setCustomUserClaims(user.uid, { role: "Nachbar" });
-    console.log(`Custom Claim 'role:Nachbar' für User ${user.uid} gesetzt.`);
+// in V1 Funktionen werden die Secrets über Strings definiert
+// in V2 Funktonen ueber Objekte ->
+// export const testSecret = v2.https.onRequest(
+//   { secrets: [gmailEmail] },
+//   async (req, res) => {
+//     res.send("Secret geladen: " + gmailEmail.value());
+//   }
+// );
+//...
+exports.setcustomuserclaims = functionsv1
+  .runWith({ secrets: ["GMAIL_EMAIL", "GMAIL_PASSWORD"] })
+  .auth.user().onCreate(
+  async (user) => {
+    console.log(`setcustomuserclaims GESTARTET !!`);
 
-    // 2) E-Mail vorbereiten
-    const mailOptions = {
-      from: `Pumpenmonitor-App <${gmailEmail}>`,
-      to: "joerg-tiedemann@gmx.de",
-      subject: "🔔 Neuer Benutzer angelegt",
-      text: [
-        "Ein neuer Benutzer wurde im Pumpenmonitor-Projekt angelegt:",
-        `UID: ${user.uid}`,
-        `E-Mail: ${user.email || "Keine E-Mail-Adresse"}`,
-        `Display Name: ${user.displayName || "Nicht gesetzt"}`,
-        `Account erstellt: ${user.metadata.creationTime}`,
-        "",
-        "Benutzerverwaltung: https://manageuserroles-i3lrfp7ewq-uc.a.run.app"
-      ].join("\n"),
-      html: [
-          "<p>Ein neuer Benutzer wurde im Pumpenmonitor-Projekt angelegt:</p>",
-          `<ul>
-            <li>UID: ${user.uid}</li>
-            <li>E-Mail: ${user.email || "Keine E-Mail-Adresse"}</li>
-            <li>Display Name: ${user.displayName || "Nicht gesetzt"}</li>
-            <li>Account erstellt: ${user.metadata.creationTime}</li>
-          </ul>`,
-          `<p><a href="https://manageuserroles-i3lrfp7ewq-uc.a.run.app">Zur Benutzerverwaltung</a></p>`
-        ].join("")      
-    };
+    const gmailEmail = process.env.GMAIL_EMAIL;
+    const gmailPassword = process.env.GMAIL_PASSWORD;
+    console.log(`setcustomuserclaims für User:${user.email} mit Mailversand-User:${gmailEmail} und Mailversand-Passwort:${gmailPassword}`);
 
-    // 3) E-Mail versenden
-    await mailTransport.sendMail(mailOptions);
-    console.log(`E-Mail-Benachrichtigung an ${mailOptions.to} versendet.`);
+    const mailTransport = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: gmailEmail,
+        pass: gmailPassword
+      }
+    });
+    try {
+      // 1) Rolle setzen
+      await admin.auth().setCustomUserClaims(user.uid, { role: "Nachbar" });
+      console.log(`Custom Claim 'role:Nachbar' für User ${user.uid} gesetzt.`);
 
-  } catch (error) {
-    console.error(`Fehler beim Setzen der Claims für User ${user.uid}:`, error);
+      // 2) E-Mail vorbereiten
+      const mailOptions = {
+        from: `Pumpenmonitor-App <${gmailEmail}>`,
+        to: "joerg-tiedemann@gmx.de",
+        subject: "🔔 Neuer Benutzer angelegt",
+        text: [
+          "Ein neuer Benutzer wurde im Pumpenmonitor-Projekt angelegt:",
+          `UID: ${user.uid}`,
+          `E-Mail: ${user.email || "Keine E-Mail-Adresse"}`,
+          `Account erstellt: ${user.metadata.creationTime}`,
+          ""
+        ].join("\n")
+      };
+
+      await mailTransport.sendMail(mailOptions);
+      console.log(`E-Mail-Benachrichtigung an ${mailOptions.to} versendet.`);
+
+    } catch (error) {
+      console.error(`Fehler beim Setzen der Claims für User ${user.uid}:`, error);
+    }
   }
-});
+);
 
+// exports.mailtest = functionsv1
+//   .runWith({ secrets: ["GMAIL_EMAIL", "GMAIL_PASSWORD"] })
+//   .https.onRequest(async (req, res) => {
+//     const gmailEmail = process.env.GMAIL_EMAIL;
+//     const gmailPassword = process.env.GMAIL_PASSWORD;
+//     console.log(`Mailtest für User:${gmailEmail} und Passwort:${gmailPassword}`);
+
+//     const mailTransport = nodemailer.createTransport({
+//       service: "gmail",
+//       auth: {
+//         user: gmailEmail,
+//         pass: gmailPassword
+//       }
+//     });
+
+//     try {
+//       // 2) E-Mail vorbereiten
+//       const mailOptions = {
+//         from: `Pumpenmonitor-App <${gmailEmail}>`,
+//         to: "joerg-tiedemann@gmx.de",
+//         subject: "🔔 Neuer Benutzer angelegt",
+//         text: [
+//           "Ein neuer Benutzer wurde im Pumpenmonitor-Projekt angelegt:",
+//           `UID: test-UID`,
+//           `E-Mail: Testmail`,
+//           `Display Name: ${"Nicht gesetzt"}`,
+//           `Account erstellt: keine Zeit`,
+//           "",
+//           "Benutzerverwaltung: https://manageuserroles-i3lrfp7ewq-uc.a.run.app"
+//         ].join("\n")
+//       };
+
+//       await mailTransport.sendMail(mailOptions);
+//       console.log(`E-Mail-Benachrichtigung an ${mailOptions.to} versendet.`);
+
+//     } catch (error) {
+//       console.error(`Fehler beim Setzen der Claims für User ${user.uid}:`, error);
+//     }
+//     res.send(`<h1>Testmail Funktion beendet</h1>`);
+//   });
 
 exports.helloworld = v2.https.onRequest((request, response) => {
   const dat = new Date();

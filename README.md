@@ -21,21 +21,19 @@ siehe hierzu auch: https://github.com/firebase/firebase-functions/issues/1383#is
 
 ### versenden von E-Mails bei neu Anlegen eines users
 Beim Neuanlegen eines Users wird eine E-Mail von tiedemann.joerg@gmail.com an joerg-tiedemann@gmx.de geschickt
-Die Zugangsdaten zu tiedemann.joerg@gmail.com sind in runtimeconfig.json gespeichert das bei npm run serve lokal geladen wird.
-Das geht natürrlich nicht in der Cloud, dort wird die Firebase Config Var gelesen. Das ist quasi ein Configspeicher für firebase in der Cloud.
-Dieser wird wie folgt gesetzt:
+Die Zugangsdaten zu tiedemann.joerg@gmail.com sind in Google Cloud Secrets gespeichert die beim E-Mail Versand abgefragt wird.  
+die früher verwendete firebase config api wird nicht mehr verwendet da dieses für Mätz 2017 abgkündigt ist  
+Anlegen des Secret incl. aller notwendigen Rechte macht man mit:
 ```
-firebase functions:config:set gmail.email="tiedemann.joerg@gmail.com"
-firebase functions:config:set gmail.password="DEIN_GMAIL_APP_PASSWORT"
+firebase functions:secrets:set GMAIL_EMAIL
+firebase functions:secrets:set GMAIL_PASSWORD
 ```
-
-Ausgelesenn wird dieser Speicher im Komandoprompt mit 
+Dabei wird nach jedem Befehl der Wert eingegeben.
+Als E-Mail tiedemann.joerg@gmail.com und als Passwort das App-Passwort für Mail das bei Google hinterlegt ist.
+Die Eingabe wird nicht angezeigt. Man kann sich die Secrets aber auch in der Google Cloud Console im Secret Manaager anzeigen lassen oder durch den Befehl: 
 ```
-firebase functions:config:get
-```
-oder bei Starten der Cloudfunktion durch demn javascript code
-```
-gmailConfig = functions.config().gmail;
+firebase functions:secrets:access GMAIL_EMAIL
+firebase functions:secrets:access GMAIL_PASSWORD
 ```
 
 Als Passwort wird ein App-Passwort verwendet, da die 2-Faktor Authentifizierung bei Google aktiviert ist. Dieses App Passwort
