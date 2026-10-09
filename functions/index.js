@@ -6,9 +6,10 @@
  *
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
-// Pass for gmail wokwkphnkt+pdpcfv
-// const {onRequest} = require("firebase-functions/v2/https");
-
+console.log("INIT: Minimaler Test ob die Datei index.js geladen wurde");
+// exports.test = require("firebase-functions").https.onRequest((req, res) => {
+//   res.send("OK – test funktioniert");
+// });
 
 // für Simulation
 // const simulprefix = "Simul/Test";
@@ -17,13 +18,12 @@ const simulprefix = "";
 
 const v2 = require("firebase-functions/v2");
 
-// 1. v1-Core-Modul für Triggers -> V1 verwenden weil der auth Emulator nicht mit V2 funktioniert
-const functionsv1 = require("firebase-functions/v1");
+const { onUserCreated } = require("firebase-functions/identity");
+
 const { defineSecret } = require("firebase-functions/params");
 const gmailEmailSecret = defineSecret("GMAIL_EMAIL");
 const gmailPasswordSecret = defineSecret("GMAIL_PASSWORD");
 
-// const { onUserCreated } = require("firebase-functions/v2/auth");
 const nodemailer = require("nodemailer");
 
 const cors = require("cors")({origin: true}); // ← erlaubt alle Domains
@@ -32,6 +32,9 @@ const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {log} = require("firebase-functions/logger");
 
 const admin = require("firebase-admin");
+const { getAuth } = require("firebase-admin/auth");
+const { getDatabase } = require("firebase-admin/database");
+
 admin.initializeApp();
 
 // Create and deploy your first functions
@@ -60,8 +63,8 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
   const cfgpath = "Wasserwerk/CleanupConfig/"+cfgpfad;
   console.log("Cfgpath:", cfgpath);
-  // const ref = admin.database().ref("Wasserwerk/CleanupConfig/Pumpenlogging");
-  const ref = admin.database().ref(cfgpath);
+  // const ref = getDatabase().ref("Wasserwerk/CleanupConfig/Pumpenlogging");
+  const ref = getDatabase().ref(cfgpath);
   var strQueryInfo = "";
   if (boolloeschen == false) {
         strQueryInfo = "Nur als Abfrage (ohne tatsächliches Löschen)!";
@@ -91,7 +94,7 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
           var strEnd = endDate.getFullYear().toString() + "/" + String(endDate.getMonth()+1)+ "/"  + endDate.getDate().toString()+" 00:00:00";
           var endunixTimestamp = Math.round(new Date(strEnd).getTime()/1000);
           // console.log("endunixTimestamp:", endunixTimestamp.toString());
-          const ProtokollQuery = admin.database().ref(simulprefix+loeschpfad);
+          const ProtokollQuery = getDatabase().ref(simulprefix+loeschpfad);
           const Abfrage = ProtokollQuery.orderByChild("LoggingTimestamp").endAt(endunixTimestamp); 
           try
           {
@@ -216,7 +219,8 @@ async function aufraeumen(cfgpfad, loeschpfad,boolloeschen, fblog) {
 
 
 exports.version = v2.https.onRequest((request, response) => {
-  const message = "Firebase Cleanup Functions Version: 2.9";
+  console.log(`Version aufgerufen !`);
+  const message = "Firebase Cleanup Functions Version: 3.0";
   response.send(`<h1>${message}</h1>`);
 
 });
@@ -233,7 +237,7 @@ exports.deleteUser = v2.https.onRequest((req, res) => {
 
     let decodedToken;
     try {
-      decodedToken = await admin.auth().verifyIdToken(idToken);
+      decodedToken = await getAuth().verifyIdToken(idToken);
     } catch (error) {
       console.error("Token ungültig:", error);
       return res.status(403).send("Token ungültig oder abgelaufen.");
@@ -250,8 +254,8 @@ exports.deleteUser = v2.https.onRequest((req, res) => {
     }
 
     try {
-      const userRecord = await admin.auth().getUserByEmail(email);
-      await admin.auth().deleteUser(userRecord.uid);
+      const userRecord = await getAuth().getUserByEmail(email);
+      await getAuth().deleteUser(userRecord.uid);
       res.status(200).send(`Benutzer mit Email ${email} erfolgreich gelöscht.`);
     } catch (error) {
       console.error("Fehler beim Löschen des Nutzers:", error);
@@ -273,7 +277,7 @@ exports.setuserrole = v2.https.onRequest(async (req, res) => {
 
     let decodedToken;
     try {
-      decodedToken = await admin.auth().verifyIdToken(idToken);
+      decodedToken = await getAuth().verifyIdToken(idToken);
     } catch (error) {
       console.error("Token ungültig:", error);
       return res.status(403).send("Token ungültig oder abgelaufen.");
@@ -296,10 +300,10 @@ exports.setuserrole = v2.https.onRequest(async (req, res) => {
     }
 
     try {
-      const userRecord = await admin.auth().getUserByEmail(email);
+      const userRecord = await getAuth().getUserByEmail(email);
       const uid = userRecord.uid;
 
-      await admin.auth().setCustomUserClaims(uid, { role: role });
+      await getAuth().setCustomUserClaims(uid, { role: role });
 
       const message = `Rolle '${role}' für Benutzer ${email} erfolgreich gesetzt.`;
       res.status(200).send(`<h1>${message}</h1>`);
@@ -317,11 +321,12 @@ exports.listUsers = v2.https.onRequest((req, res) => {
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).send("Client nicht authentifiziert.");
     }
+    console.log(`listUsers GESTARTET !!`);
 
     const idToken = authHeader.split("Bearer ")[1];
 
     try {
-      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const decodedToken = await getAuth().verifyIdToken(idToken);
       if (decodedToken.role !== "admin") {
         return res.status(403).send("Client hat keine Admin-Berechtigung.");
       }
@@ -330,7 +335,7 @@ exports.listUsers = v2.https.onRequest((req, res) => {
       let nextPageToken;
 
       do {
-        const result = await admin.auth().listUsers(1000, nextPageToken);
+        const result = await getAuth().listUsers(1000, nextPageToken);
         result.users.forEach(user => {
           users.push({
             uid: user.uid,
@@ -360,15 +365,19 @@ exports.listUsers = v2.https.onRequest((req, res) => {
 //   }
 // );
 //...
-exports.setcustomuserclaims = functionsv1
-  .runWith({ secrets: ["GMAIL_EMAIL", "GMAIL_PASSWORD"] })
-  .auth.user().onCreate(
-  async (user) => {
+exports.setcustomuserclaims = onUserCreated(
+  { 
+    region: "us-central1",
+    secrets: [gmailEmailSecret, gmailPasswordSecret] 
+  },
+   async (event) => {
+    const { uid, email, displayName } = event.data;
+
     console.log(`setcustomuserclaims GESTARTET !!`);
 
-    const gmailEmail = process.env.GMAIL_EMAIL;
-    const gmailPassword = process.env.GMAIL_PASSWORD;
-    console.log(`setcustomuserclaims für User:${user.email} mit Mailversand-User:${gmailEmail} und Mailversand-Passwort:${gmailPassword}`);
+    const gmailEmail =  gmailEmailSecret.value();
+    const gmailPassword = gmailPasswordSecret.value();
+    console.log(`setcustomuserclaims für User:${email} mit Mailversand-User:${gmailEmail} und Mailversand-Passwort:${gmailPassword}`);
 
     const mailTransport = nodemailer.createTransport({
       service: "gmail",
@@ -379,8 +388,12 @@ exports.setcustomuserclaims = functionsv1
     });
     try {
       // 1) Rolle setzen
-      await admin.auth().setCustomUserClaims(user.uid, { role: "Nachbar" });
-      console.log(`Custom Claim 'role:Nachbar' für User ${user.uid} gesetzt.`);
+      await getAuth().setCustomUserClaims(uid, { role: "Nachbar" });
+      console.log(`Custom Claim 'role:Nachbar' für User ${uid} gesetzt.`);
+
+      // User-Record nachladen damit wir die Creation Time haben
+      const userRecord = await getAuth().getUser(uid);
+      const creationTime = userRecord.metadata.creationTime;
 
       // 2) E-Mail vorbereiten
       const mailOptions = {
@@ -388,10 +401,10 @@ exports.setcustomuserclaims = functionsv1
         to: "joerg-tiedemann@gmx.de",
         subject: "🔔 Neuer Benutzer angelegt",
         text: [
-          "Ein neuer Benutzer wurde im Pumpenmonitor-Projekt angelegt:",
-          `UID: ${user.uid}`,
-          `E-Mail: ${user.email || "Keine E-Mail-Adresse"}`,
-          `Account erstellt: ${user.metadata.creationTime}`,
+          "Im Pumpenmonitor-Projekt wurde ein neuer Benutzer angelegt:",
+          `UID: ${uid}`,
+          `E-Mail: ${email || "Keine E-Mail-Adresse"}`,
+          `Account erstellt: ${creationTime}`,
           ""
         ].join("\n")
       };
@@ -400,51 +413,10 @@ exports.setcustomuserclaims = functionsv1
       console.log(`E-Mail-Benachrichtigung an ${mailOptions.to} versendet.`);
 
     } catch (error) {
-      console.error(`Fehler beim Setzen der Claims für User ${user.uid}:`, error);
+      console.error(`Fehler beim Setzen der Claims für User ${uid}:`, error);
     }
   }
 );
-
-// exports.mailtest = functionsv1
-//   .runWith({ secrets: ["GMAIL_EMAIL", "GMAIL_PASSWORD"] })
-//   .https.onRequest(async (req, res) => {
-//     const gmailEmail = process.env.GMAIL_EMAIL;
-//     const gmailPassword = process.env.GMAIL_PASSWORD;
-//     console.log(`Mailtest für User:${gmailEmail} und Passwort:${gmailPassword}`);
-
-//     const mailTransport = nodemailer.createTransport({
-//       service: "gmail",
-//       auth: {
-//         user: gmailEmail,
-//         pass: gmailPassword
-//       }
-//     });
-
-//     try {
-//       // 2) E-Mail vorbereiten
-//       const mailOptions = {
-//         from: `Pumpenmonitor-App <${gmailEmail}>`,
-//         to: "joerg-tiedemann@gmx.de",
-//         subject: "🔔 Neuer Benutzer angelegt",
-//         text: [
-//           "Ein neuer Benutzer wurde im Pumpenmonitor-Projekt angelegt:",
-//           `UID: test-UID`,
-//           `E-Mail: Testmail`,
-//           `Display Name: ${"Nicht gesetzt"}`,
-//           `Account erstellt: keine Zeit`,
-//           "",
-//           "Benutzerverwaltung: https://manageuserroles-i3lrfp7ewq-uc.a.run.app"
-//         ].join("\n")
-//       };
-
-//       await mailTransport.sendMail(mailOptions);
-//       console.log(`E-Mail-Benachrichtigung an ${mailOptions.to} versendet.`);
-
-//     } catch (error) {
-//       console.error(`Fehler beim Setzen der Claims für User ${user.uid}:`, error);
-//     }
-//     res.send(`<h1>Testmail Funktion beendet</h1>`);
-//   });
 
 exports.helloworld = v2.https.onRequest((request, response) => {
   const dat = new Date();
@@ -453,7 +425,6 @@ exports.helloworld = v2.https.onRequest((request, response) => {
   response.send(`<h1>${message}</h1>`);
 
 });
-
 
 
 exports.pumpenloggingquery = v2.https.onRequest((request, response) => {

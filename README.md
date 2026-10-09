@@ -10,14 +10,22 @@ im Verzeichnis ```firebase init functions``` aufrufen
 Install dependencies with npm am Ende mit Y beantworten und Eslint auch verwenden
 
 ### verwendete Node Engine
-normalerweise wird die node engine 22 verwendet. Da aber der Trigger setcustomuserclaim, der bei anlegen eines neues firebaseusers die Standardbenutzerrolle setzt, noch nach v1 implementiert ist (weil es für v2 von den firebasefunctions nocjt nicht implementiert wurde) muss die Node Engine auf 20 geändert werden in der package.json da node 22 kein v1 mehr supported. In Package.json muss daher stehen:
+normalerweise wird die node engine 24 verwendet, da der Trigger setcustomuserclaims, der bei anlegen eines neues firebaseusers die Standardbenutzerrolle setzt inzwischen in V2 implementiert wurde. In Package.json muss daher stehen:
 ```
   "engines": {
-    "node": "20"
+    "node": "24"
   },
   ```
 
 siehe hierzu auch: https://github.com/firebase/firebase-functions/issues/1383#issuecomment-3223208410
+Weiterhin brauchen wir für den Trigger onUserCreated mindestens:
+```
+ firebase-admin Version 14.4.0
+ firebase-functions Version 7.4.0
+```
+und für den Emulator die Firebase-Tools in Version 15.33.0
+weiterhin muss Node V24 installiert sein (ganz normal von https://nodejs.org/ downloaden und dann als Windows Programm installieren)  
+Damit die Node-Module aus der package.json installiert werden einfach ```npm install``` aufrufen
 
 ### versenden von E-Mails bei neu Anlegen eines users
 Beim Neuanlegen eines Users wird eine E-Mail von tiedemann.joerg@gmail.com an joerg-tiedemann@gmx.de geschickt
@@ -74,14 +82,21 @@ Actions zum Deployment sind noch nicht implementiert d.h. das deployment muss ma
 Zum Deployen daher ```npm run deploy``` aufrufen
 Im Unterverzeichnis functions !
 
-## Logs ansehen
-Entweder über die Firebase Console oder im Komandoprompt mit
-```firebase functions:log --only <Funktionname>```
+Wenn beim Deployment folgende Fehlermeldung kommt:  
+```
+Error: User code failed to load. Cannot determine backend specification. Timeout after 10000. See https://firebase.google.com/docs/functions/tips#avoid_deployment_timeouts_during_initialization'
+```
+dann einfach noch einmal probieren
 
+## Logs ansehen
+Entweder über den Emulator dort sieht man die Logs in der Terminalkonsole vom Visual Studio  
+oder in der Firebase Console und dann bei den 3 Punkten die Detailierte Nutzungsanalyse auswählen und dann den Tab Logs  
+Im Komandoprompt mit geht das auch:  
+```firebase functions:log --only <Funktionname>```  
+Dabei ist ```<Funktionname>``` der echte Funktionsname ohne URL also z.B. ```firebase functions:log --only listUsers``` für die Funktion listUsers
 
 # Liste der Cloundfunktionen
-Alle Cloundfunktionen sind als v2 Funktionen implementiert ausser ```setcustomuserclaims```. Diese Funktion iszt als v1 Funktion implementiert, da der OnCreateTrigger bei V2 noch nicht zur Verfügung steht. Aus diesem Grund muss auch ```node 20``` in ```package.json``` als node engine verwendet werden, da neuere Node Versionen keine V1 Versionen mehr unterstützen
-
+Alle Cloundfunktionen sind als v2 Funktionen implementiert.  
 Folgende Cloundfunktionenen sind implementiert
 
 | Funktion                       | Beschreibung                                                                                   |
@@ -90,7 +105,7 @@ Folgende Cloundfunktionenen sind implementiert
 | **deleteUser**                 | Löscht einen Benutzer anhand der E-Mail-Adresse. Nur für Admins mit gültigem Token erlaubt. (Wird von Firebaselogger verwendet)       |
 | **setuserrole**                | Setzt die Rolle eines Benutzers anhand der E-Mail-Adresse. Nur für Admins mit gültigem Token erlaubt.  (Wird von Firebaselogger verwendet)     |
 | **listUsers**                  | Gibt eine JSON-Liste aller Benutzer mit UID, E-Mail, Name und Rolle zurück.  Nur für Admins mit gültigem Token erlaubt.  (Wird von Firebaselogger verwendet)      |
-| **setcustomuserclaims**        | Setzt beim Anlegen eines neuen Benutzers automatisch die Rolle "Nachbar" und versendet eine E-Mail. (ueber OnCreateTrigger als v1 Funktion implementiert) |
+| **setcustomuserclaims**        | Setzt beim Anlegen eines neuen Benutzers automatisch die Rolle "Nachbar" und versendet eine E-Mail. (ueber onUserCreate Trigger als v2 Funktion implementiert) |
 | **helloworld**                 | Gibt eine Begrüßung mit aktuellem Datum und Uhrzeit zurück. (nur als Testfunktion)                                   |
 | **pumpenloggingquery**         | Zeigt die Anzahl der zu löschenden PumpenLogging-Datensätze (nur Abfrage, kein Löschen).      |
 | **pumpentageswertequery**      | Zeigt die Anzahl der zu löschenden PumpenTageswerte-Datensätze (nur Abfrage, kein Löschen).   |
